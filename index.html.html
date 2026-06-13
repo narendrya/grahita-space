@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grahita — Wearable IoT Stress Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy-bg: #060621;
+            --navy-2: #0a0a2e;
+            --teal-accent: #00e6a8;
+            --cyan-accent: #00bfff;
+            --purple-accent: #b19ffb;
+            --glass-card: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-muted: #8a8aab;
+            --display: 'Space Grotesk', sans-serif;
+            --body: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background-color: var(--navy-bg);
+            color: #ffffff;
+            font-family: var(--body);
+            margin: 0; padding: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ─── AMBIENT BACKGROUND ─── */
+        #bg-fx {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.35;
+            animation: drift 22s ease-in-out infinite alternate;
+        }
+        .orb.a { width: 420px; height: 420px; background: var(--teal-accent); top: -120px; left: -100px; }
+        .orb.b { width: 460px; height: 460px; background: var(--cyan-accent); bottom: -160px; right: -120px; animation-delay: -7s; }
+        .orb.c { width: 320px; height: 320px; background: var(--purple-accent); top: 40%; left: 55%; opacity: 0.22; animation-delay: -13s; }
+        @keyframes drift {
+            from { transform: translate(0,0) scale(1); }
+            to   { transform: translate(60px, 40px) scale(1.15); }
+        }
+        #bg-grid {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 40%, transparent 100%);
+            -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 40%, transparent 100%);
+            pointer-events: none;
+        }
+
+        /* ─── AUTH OVERLAY ─── */
+        #auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at top, #0b0b35 0%, var(--navy-bg) 60%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-box {
+            width: 100%;
+            max-width: 430px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px 36px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: fadeIn 0.6s ease;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            position: relative;
+            overflow: hidden;
+        }
+        .auth-box::before {
+            content: "";
+            position: absolute;
+            top: -1px; left: -1px; right: -1px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--teal-accent), var(--cyan-accent), transparent);
+        }
+
+        .auth-logo { text-align: center; margin-bottom: 8px; }
+        .auth-logo h1 {
+            font-family: var(--display);
+            font-size: 2.4rem;
+            letter-spacing: 6px;
+            color: var(--teal-accent);
+            margin: 0;
+            text-shadow: 0 0 24px rgba(0,230,168,0.45);
+        }
+        .auth-logo .pulse-line {
+            width: 60px; height: 2px; margin: 12px auto 0;
+            background: linear-gradient(90deg, transparent, var(--cyan-accent), transparent);
+            position: relative;
+        }
+        .auth-logo .pulse-line::after {
+            content: ""; position: absolute; top: -3px; left: 0;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--cyan-accent); box-shadow: 0 0 10px var(--cyan-accent);
+            animation: scanLine 2.4s ease-in-out infinite;
+        }
+        @keyframes scanLine { 0%,100%{ left:0; opacity:.3 } 50%{ left:52px; opacity:1 } }
+        .auth-logo p { color: var(--text-muted); font-size: 0.85rem; margin: 14px 0 28px 0; letter-spacing: 0.5px; }
+
+        .auth-tabs {
+            display: flex;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 28px;
+            border: 1px solid var(--glass-border);
+        }
+        .auth-tab-btn {
+            flex: 1; border: none; background: transparent;
+            color: var(--text-muted); padding: 10px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            border-radius: 7px; transition: all 0.25s ease; font-family: var(--body);
+        }
+        .auth-tab-btn.active {
+            background: linear-gradient(90deg, var(--teal-accent), var(--cyan-accent));
+            color: var(--navy-bg);
+            box-shadow: 0 3px 12px rgba(0,230,168,0.3);
+        }
+
+        .auth-form { display: flex; flex-direction: column; gap: 14px; }
+        .auth-form label {
+            font-size: 0.78rem; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 4px; display: block;
+        }
+        .auth-input-wrap { position: relative; }
+        .auth-input-wrap input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px; padding: 13px 16px;
+            color: #ffffff; font-size: 0.95rem;
+            transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+            font-family: var(--body);
+        }
+        .auth-input-wrap input:focus {
+            border-color: var(--teal-accent);
+            box-shadow: 0 0 0 3px rgba(0,230,168,0.12);
+        }
+        .auth-input-wrap input::placeholder { color: #4a4a6a; }
+
+        .auth-btn {
+            background: linear-gradient(90deg, var(--teal-accent), var(--cyan-accent));
+            border: none; border-radius: 10px; padding: 14px;
+            color: var(--navy-bg); font-size: 1rem; font-weight: 700;
+            cursor: pointer; margin-top: 6px; transition: all 0.2s ease;
+            letter-spacing: 0.5px; font-family: var(--body);
+        }
+        .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,230,168,0.4); }
+        .auth-btn:active { transform: translateY(0); }
+
+        .auth-error, .auth-success {
+            border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+            display: none; text-align: center;
+        }
+        .auth-error { background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.4); color: #ff8080; }
+        .auth-success { background: rgba(0,230,168,0.1); border: 1px solid rgba(0,230,168,0.4); color: var(--teal-accent); }
+
+        /* ─── MAIN APP ─── */
+        #app-container { width: 100%; }
+        .main-container { width: 90%; max-width: 1040px; padding: 36px 0 60px; margin: 0 auto; }
+
+        header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 30px; flex-wrap: wrap; gap: 12px;
+        }
+        header h1 {
+            font-family: var(--display);
+            color: var(--teal-accent); font-size: 2.5rem; letter-spacing: 6px;
+            margin: 0; text-shadow: 0 0 14px rgba(0, 230, 168, 0.35);
+            flex: 1; text-align: center;
+        }
+
+        .user-badge {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+            border-radius: 50px; padding: 8px 16px 8px 10px; white-space: nowrap;
+        }
+        .user-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 700; color: var(--navy-bg); flex-shrink: 0;
+            font-family: var(--display);
+        }
+        .user-name { font-size: 0.85rem; color: #c1c1d6; font-weight: 600; }
+
+        .logout-btn {
+            background: transparent; border: 1px solid rgba(255,77,77,0.4);
+            color: #ff8080; padding: 7px 14px; border-radius: 8px;
+            font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            font-family: var(--body);
+        }
+        .logout-btn:hover { background: rgba(255,77,77,0.1); border-color: #ff4d4d; }
+
+        .tab-navigation {
+            display: flex; justify-content: center; gap: 8px; margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.02); padding: 8px; border-radius: 14px;
+            border: 1px solid var(--glass-border); flex-wrap: wrap;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        }
+        .tab-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            padding: 11px 20px; font-size: 0.92rem; font-weight: 600; cursor: pointer;
+            border-radius: 9px; transition: all 0.3s ease; font-family: var(--body);
+        }
+        .tab-btn:hover { color: var(--cyan-accent); background: rgba(255,255,255,0.03); }
+        .tab-btn.active {
+            color: var(--navy-bg);
+            background: linear-gradient(90deg, var(--teal-accent), var(--cyan-accent));
+            box-shadow: 0 4px 15px rgba(0, 230, 168, 0.3);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.45s ease-in-out; }
+
+        .glass-panel {
+            background: var(--glass-card);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border); border-radius: 20px;
+            padding: 25px; margin-bottom: 26px; box-shadow: 0 8px 32px rgba(0,0,0,0.37);
+        }
+
+        .panel-title {
+            font-size: 1.05rem; color: #c1c1d6; margin: 0 0 20px 0;
+            text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .panel-title::before {
+            content: ""; width: 4px; height: 16px; border-radius: 2px;
+            background: linear-gradient(var(--teal-accent), var(--cyan-accent));
+        }
+
+        /* ─── REVEAL ON LOAD ─── */
+        .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+        .reveal.show { opacity: 1; transform: none; }
+
+        /* ─── HOME MENU CARDS ─── */
+        .home-dashboard-wrapper { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; margin-bottom: 26px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+
+        .menu-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-radius: 16px; padding: 26px 16px; text-align: center;
+            color: #ffffff; font-weight: 700; font-size: 1.02rem; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            position: relative; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden;
+        }
+        .menu-card .ic { width: 30px; height: 30px; opacity: 0.95; transition: transform .3s ease; }
+        .menu-card:hover .ic { transform: scale(1.15) translateY(-2px); }
+        .menu-card::after {
+            content: ""; position: absolute; inset: 0;
+            background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.08), transparent 60%);
+            opacity: 0; transition: opacity .3s;
+        }
+        .menu-card:hover::after { opacity: 1; }
+        .menu-card:hover { transform: translateY(-4px); }
+
+        .card-evaluation { grid-column: span 3; border-left: 3px solid var(--cyan-accent); }
+        .card-evaluation:hover {
+            background: linear-gradient(135deg, rgba(0, 191, 255, 0.15), rgba(0, 191, 255, 0.02));
+            border-color: var(--cyan-accent);
+            box-shadow: 0 14px 30px rgba(0, 191, 255, 0.3), inset 0 0 12px rgba(0, 191, 255, 0.1);
+            color: var(--cyan-accent);
+        }
+        .card-progress { grid-column: span 3; border-left: 3px solid var(--teal-accent); }
+        .card-progress:hover {
+            background: linear-gradient(135deg, rgba(0, 230, 168, 0.15), rgba(0, 230, 168, 0.02));
+            border-color: var(--teal-accent);
+            box-shadow: 0 14px 30px rgba(0, 230, 168, 0.3), inset 0 0 12px rgba(0, 230, 168, 0.1);
+            color: var(--teal-accent);
+        }
+        .card-journal { grid-column: span 2; }
+        .card-psikolog { grid-column: span 2; }
+        .card-journal:hover, .card-psikolog:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+            border-color: rgba(255,255,255,0.4); box-shadow: 0 14px 30px rgba(255, 255, 255, 0.1);
+        }
+        .card-questionnaire { grid-column: span 2; font-size: 0.88rem; border-left: 3px solid var(--purple-accent); }
+        .card-questionnaire:hover {
+            background: linear-gradient(135deg, rgba(177, 159, 251, 0.15), rgba(177, 159, 251, 0.02));
+            border-color: var(--purple-accent);
+            box-shadow: 0 14px 30px rgba(177, 159, 251, 0.3), inset 0 0 12px rgba(177, 159, 251, 0.1);
+            color: var(--purple-accent);
+        }
+
+        .bell-badge {
+            position: absolute; top: -10px; right: 16px; font-size: 1.5rem;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3)); animation: pulseBell 1.5s infinite alternate;
+        }
+        @keyframes pulseBell { from { transform: scale(1) rotate(-5deg);} to { transform: scale(1.15) rotate(5deg);} }
+
+        /* ─── AI ASSISTANT SIDEBAR ─── */
+        .ai-assistant-sidebar {
+            background: linear-gradient(160deg, rgba(0,191,255,0.08), rgba(255, 255, 255, 0.02));
+            border: 1px solid var(--glass-border); border-radius: 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .ai-assistant-sidebar:hover {
+            border-color: var(--cyan-accent);
+            box-shadow: 0 10px 34px rgba(0,191,255,0.25);
+            transform: translateY(-3px);
+        }
+        .ai-robot-icon { width: 64px; height: 64px; margin-bottom: 12px; filter: drop-shadow(0 0 10px var(--cyan-accent)); animation: floatBot 3.5s ease-in-out infinite; }
+        @keyframes floatBot { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-6px);} }
+        .ai-assistant-text { font-size: 0.85rem; font-weight: 700; color: var(--cyan-accent); letter-spacing: 0.5px; }
+        .ai-cta-mini { margin-top: 8px; font-size: 0.7rem; color: var(--text-muted); }
+
+        /* ─── ABOUT + SOCIAL ─── */
+        .socmed-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 20px; }
+        .socmed-card {
+            display: flex; align-items: center; gap: 14px;
+            background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+            border-radius: 14px; padding: 16px 18px; text-decoration: none; color: #ffffff;
+            transition: all 0.3s ease; cursor: pointer;
+        }
+        .socmed-card:hover { background: rgba(255,255,255,0.08); border-color: var(--teal-accent); transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,230,168,0.15); }
+        .socmed-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .socmed-icon svg { width: 24px; height: 24px; }
+        .socmed-icon.ig { background: linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+        .socmed-icon.tiktok { background: #010101; border: 1px solid rgba(255,255,255,0.1); }
+        .socmed-icon.youtube { background: #ff0000; }
+        .socmed-icon.email { background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent)); }
+        .socmed-info { display: flex; flex-direction: column; gap: 2px; }
+        .socmed-platform { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; }
+        .socmed-handle { font-size: 0.95rem; font-weight: 600; color: #e1e1f0; }
+        .find-us-text { color: #a5a5c5; margin: 0 0 4px 0; line-height: 1.6; font-size: 0.95rem; }
+
+        /* ─── REPORT: GAUGES ─── */
+        .gauge-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 26px; }
+        .gauge-card {
+            background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border);
+            border-radius: 18px; padding: 24px; text-align: center; position: relative;
+        }
+        .gauge-card h3 { margin: 0 0 6px; font-size: 0.95rem; color: #a5a5c5; font-weight: 600; letter-spacing: .4px; }
+        .gauge-wrap { position: relative; width: 170px; height: 170px; margin: 6px auto 4px; }
+        .gauge-wrap svg { transform: rotate(-90deg); }
+        .gauge-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 12; }
+        .gauge-fill { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.22,.61,.36,1); }
+        .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .gauge-value { font-family: var(--display); font-size: 2.6rem; font-weight: 700; line-height: 1; }
+        .gauge-unit { font-size: 0.75rem; color: #71719c; margin-top: 6px; }
+        #bpm-num { color: var(--cyan-accent); }
+        #hrv-num { color: var(--teal-accent); }
+        .status-chip {
+            display: inline-flex; align-items: center; gap: 7px; margin-top: 12px;
+            padding: 5px 14px; border-radius: 50px; font-size: 0.78rem; font-weight: 600;
+            background: rgba(0,230,168,0.12); color: var(--teal-accent); border: 1px solid rgba(0,230,168,0.3);
+            transition: all .3s;
+        }
+        .status-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal-accent); box-shadow: 0 0 8px var(--teal-accent); animation: livePulse 1.6s infinite; }
+        .status-chip.warn { background: rgba(255,77,77,0.12); color: #ff8080; border-color: rgba(255,77,77,0.35); }
+        .status-chip.warn .dot { background: #ff4d4d; box-shadow: 0 0 8px #ff4d4d; }
+        @keyframes livePulse { 0%,100%{ opacity:1 } 50%{ opacity:.25 } }
+
+        /* ─── ALERT + BREATHING ─── */
+        .alert-section {
+            background: linear-gradient(135deg, rgba(255,77,77,0.1), rgba(255,154,60,0.1));
+            border: 1px solid #ff4d4d; border-radius: 18px; padding: 25px;
+            display: none; animation: slideDown 0.4s ease-in-out; margin-bottom: 26px;
+        }
+        .alert-header { color: #ff4d4d; font-size: 1.15rem; font-weight: 700; margin-top: 0; }
+        .solution-list { margin: 15px 0 0 0; padding-left: 20px; color: #e1e1f0; line-height: 1.65; }
+        .solution-list li { margin-bottom: 8px; }
+
+        .breath-box { display: flex; flex-direction: column; align-items: center; margin: 22px 0 6px; }
+        .breath-circle {
+            width: 130px; height: 130px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(0,230,168,0.25), rgba(0,191,255,0.05));
+            border: 2px solid var(--teal-accent);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 600; font-size: 0.95rem; text-align: center;
+            box-shadow: 0 0 30px rgba(0,230,168,0.25); transition: none;
+        }
+        .breath-circle.run { animation: breathe478 19s ease-in-out infinite; }
+        @keyframes breathe478 {
+            0%   { transform: scale(0.8); box-shadow: 0 0 20px rgba(0,191,255,0.2); }
+            21%  { transform: scale(1.25); box-shadow: 0 0 45px rgba(0,230,168,0.5); }   /* inhale 4s */
+            58%  { transform: scale(1.25); box-shadow: 0 0 45px rgba(0,230,168,0.5); }   /* hold 7s */
+            100% { transform: scale(0.8); box-shadow: 0 0 20px rgba(0,191,255,0.2); }    /* exhale 8s */
+        }
+        .breath-btn {
+            margin-top: 16px; background: transparent; border: 1px solid var(--teal-accent);
+            color: var(--teal-accent); padding: 9px 20px; border-radius: 50px; cursor: pointer;
+            font-weight: 600; font-size: 0.85rem; transition: all .2s; font-family: var(--body);
+        }
+        .breath-btn:hover { background: rgba(0,230,168,0.12); }
+        .breath-phase { margin-top: 12px; color: var(--teal-accent); font-weight: 600; font-size: 0.9rem; min-height: 20px; }
+
+        /* ─── AKADEMIK STATS ─── */
+        .stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 26px; }
+        .stat-card {
+            background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border);
+            border-radius: 16px; padding: 20px; text-align: center;
+        }
+        .stat-card .num { font-family: var(--display); font-size: 2.2rem; font-weight: 700; }
+        .stat-card .lbl { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+        .stat-card.c1 .num { color: var(--teal-accent); }
+        .stat-card.c2 .num { color: var(--cyan-accent); }
+        .stat-card.c3 .num { color: var(--purple-accent); }
+
+        /* ─── QUESTIONNAIRE ─── */
+        .quiz-group { display: flex; flex-direction: column; gap: 18px; max-width: 540px; margin: 0 auto; }
+        .quiz-group > label { color: #e1e1f0; font-size: 1rem; text-align: center; line-height: 1.5; }
+        .slider-emoji { font-size: 3rem; text-align: center; transition: transform .2s; }
+        .slider-wrap { display: flex; flex-direction: column; gap: 8px; }
+        .slider-val { text-align: center; font-family: var(--display); font-size: 1.8rem; font-weight: 700; color: var(--teal-accent); }
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 10px;
+            background: linear-gradient(90deg, var(--teal-accent), #ffd166, #ff4d4d); outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%;
+            background: #fff; border: 3px solid var(--cyan-accent); cursor: pointer; box-shadow: 0 0 12px rgba(0,191,255,0.6);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 26px; height: 26px; border-radius: 50%; background: #fff;
+            border: 3px solid var(--cyan-accent); cursor: pointer; box-shadow: 0 0 12px rgba(0,191,255,0.6);
+        }
+        .scale-hints { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
+        .quiz-group button[type="submit"] {
+            background: linear-gradient(90deg, var(--teal-accent), var(--cyan-accent));
+            border: none; padding: 14px; border-radius: 10px; color: var(--navy-bg);
+            font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease; font-family: var(--body);
+        }
+        .quiz-group button[type="submit"]:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,230,168,0.4); }
+
+        /* ─── TOAST ─── */
+        #toast-wrap { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .toast {
+            background: rgba(10,10,40,0.92); border: 1px solid var(--glass-border);
+            border-left: 4px solid var(--teal-accent); color: #e1e1f0;
+            padding: 14px 20px; border-radius: 12px; font-size: 0.9rem; max-width: 90vw;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+            animation: toastIn .35s ease; display: flex; align-items: center; gap: 10px;
+        }
+        .toast.err { border-left-color: #ff4d4d; }
+        .toast.info { border-left-color: var(--cyan-accent); }
+        @keyframes toastIn { from { opacity:0; transform: translateY(16px);} to { opacity:1; transform: none;} }
+
+        /* ─── GRAPHITE CHAT ─── */
+        #chat-fab {
+            position: fixed; bottom: 24px; right: 24px; z-index: 1500;
+            width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
+            background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent));
+            box-shadow: 0 8px 26px rgba(0,191,255,0.45);
+            display: none; align-items: center; justify-content: center;
+            transition: transform .25s; animation: floatBot 3.5s ease-in-out infinite;
+        }
+        #chat-fab:hover { transform: scale(1.08); }
+        #chat-fab svg { width: 30px; height: 30px; }
+
+        #chat-panel {
+            position: fixed; bottom: 96px; right: 24px; z-index: 1600;
+            width: 370px; max-width: calc(100vw - 32px); height: 540px; max-height: calc(100vh - 130px);
+            background: rgba(8,8,32,0.96); border: 1px solid var(--glass-border);
+            border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+            display: none; flex-direction: column; overflow: hidden;
+            backdrop-filter: blur(16px); animation: fadeIn .3s ease;
+        }
+        .chat-header {
+            padding: 16px 18px; display: flex; align-items: center; gap: 12px;
+            background: linear-gradient(135deg, rgba(0,230,168,0.12), rgba(0,191,255,0.12));
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .chat-header .ava {
+            width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent));
+            display: flex; align-items: center; justify-content: center;
+        }
+        .chat-header .ava svg { width: 22px; height: 22px; }
+        .chat-header .ti { font-family: var(--display); font-weight: 700; color: #fff; font-size: 1rem; }
+        .chat-header .sub { font-size: 0.72rem; color: var(--teal-accent); display: flex; align-items: center; gap: 5px; }
+        .chat-header .sub .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal-accent); box-shadow: 0 0 6px var(--teal-accent); animation: livePulse 1.6s infinite; }
+        .chat-close { margin-left: auto; background: transparent; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+        .chat-close:hover { color: #fff; }
+
+        #chat-messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+        #chat-messages::-webkit-scrollbar { width: 6px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
+        .msg { max-width: 82%; padding: 11px 14px; border-radius: 14px; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+        .msg.bot { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); align-self: flex-start; border-bottom-left-radius: 4px; color: #e8e8f5; }
+        .msg.user { background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent)); color: var(--navy-bg); align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 500; }
+        .msg.typing { display: flex; gap: 5px; }
+        .msg.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); animation: blink 1.2s infinite; }
+        .msg.typing span:nth-child(2){ animation-delay:.2s } .msg.typing span:nth-child(3){ animation-delay:.4s }
+        @keyframes blink { 0%,60%,100%{ opacity:.25 } 30%{ opacity:1 } }
+
+        .chat-suggest { display: flex; gap: 8px; padding: 0 18px 10px; flex-wrap: wrap; }
+        .chat-suggest button {
+            background: rgba(0,191,255,0.08); border: 1px solid rgba(0,191,255,0.3); color: var(--cyan-accent);
+            padding: 7px 12px; border-radius: 50px; font-size: 0.78rem; cursor: pointer; transition: all .2s; font-family: var(--body);
+        }
+        .chat-suggest button:hover { background: rgba(0,191,255,0.18); }
+        .chat-input-row { display: flex; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--glass-border); }
+        .chat-input-row input {
+            flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+            border-radius: 50px; padding: 11px 16px; color: #fff; font-size: 0.9rem; outline: none; font-family: var(--body);
+        }
+        .chat-input-row input:focus { border-color: var(--teal-accent); }
+        .chat-send {
+            width: 44px; height: 44px; border-radius: 50%; border: none; flex-shrink: 0; cursor: pointer;
+            background: linear-gradient(135deg, var(--teal-accent), var(--cyan-accent));
+            display: flex; align-items: center; justify-content: center; transition: transform .2s;
+        }
+        .chat-send:hover { transform: scale(1.08); }
+        .chat-send:disabled { opacity: .5; cursor: not-allowed; }
+        .chat-send svg { width: 20px; height: 20px; }
+        .chat-disclaimer { font-size: 0.66rem; color: #5a5a78; text-align: center; padding: 0 16px 10px; line-height: 1.4; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 0; transform: scaleY(0.95); } to { opacity: 1; transform: scaleY(1); } }
+
+        @media (max-width: 768px) {
+            .home-dashboard-wrapper { grid-template-columns: 1fr; }
+            .menu-grid { grid-template-columns: 1fr; }
+            .card-evaluation, .card-progress, .card-journal, .card-psikolog, .card-questionnaire { grid-column: span 1; }
+            .gauge-row, .socmed-grid, .stat-row { grid-template-columns: 1fr; }
+            header { flex-direction: column; align-items: center; text-align: center; }
+            header h1 { font-size: 2rem; }
+            header > div:first-child { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+            .breath-circle.run { animation: none !important; transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="bg-fx"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
+<div id="bg-grid"></div>
+
+<!-- ═══════════════ AUTH OVERLAY ═══════════════ -->
+<div id="auth-overlay">
+    <div class="auth-box">
+        <div class="auth-logo">
+            <h1>GRAHITA</h1>
+            <div class="pulse-line"></div>
+            <p>Wearable IoT Stress Monitoring System</p>
+        </div>
+
+        <div class="auth-tabs">
+            <button class="auth-tab-btn active" id="btn-login-tab" onclick="switchAuthTab('login')">Masuk</button>
+            <button class="auth-tab-btn" id="btn-register-tab" onclick="switchAuthTab('register')">Daftar</button>
+        </div>
+
+        <div id="login-form">
+            <div class="auth-form">
+                <div>
+                    <label>Username</label>
+                    <div class="auth-input-wrap">
+                        <input type="text" id="login-username" placeholder="Masukkan username" autocomplete="username">
+                    </div>
+                </div>
+                <div>
+                    <label>Password</label>
+                    <div class="auth-input-wrap">
+                        <input type="password" id="login-password" placeholder="Masukkan password" autocomplete="current-password">
+                    </div>
+                </div>
+                <div id="login-error" class="auth-error"></div>
+                <button class="auth-btn" onclick="doLogin()">Masuk ke Dashboard</button>
+            </div>
+        </div>
+
+        <div id="register-form" style="display:none;">
+            <div class="auth-form">
+                <div>
+                    <label>Username</label>
+                    <div class="auth-input-wrap">
+                        <input type="text" id="reg-username" placeholder="Buat username unik" autocomplete="username">
+                    </div>
+                </div>
+                <div>
+                    <label>Password</label>
+                    <div class="auth-input-wrap">
+                        <input type="password" id="reg-password" placeholder="Buat password (min. 6 karakter)" autocomplete="new-password">
+                    </div>
+                </div>
+                <div>
+                    <label>Konfirmasi Password</label>
+                    <div class="auth-input-wrap">
+                        <input type="password" id="reg-confirm" placeholder="Ulangi password" autocomplete="new-password">
+                    </div>
+                </div>
+                <div id="reg-error" class="auth-error"></div>
+                <div id="reg-success" class="auth-success"></div>
+                <button class="auth-btn" onclick="doRegister()">Buat Akun</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<div id="app-container" style="display:none;">
+    <div class="main-container">
+        <header>
+            <div style="width:180px"></div>
+            <h1>GRAHITA</h1>
+            <div style="display:flex;align-items:center;gap:10px;width:180px;justify-content:flex-end;">
+                <div class="user-badge">
+                    <div class="user-avatar" id="user-avatar-initials">?</div>
+                    <span class="user-name" id="user-display-name">User</span>
+                </div>
+                <button class="logout-btn" onclick="doLogout()">Keluar</button>
+            </div>
+        </header>
+
+        <nav class="tab-navigation">
+            <button class="tab-btn active" id="navbtn-home" onclick="openTab(event,'tab-home')">Home</button>
+            <button class="tab-btn" id="navbtn-report" onclick="openTab(event,'tab-report')">Report</button>
+            <button class="tab-btn" id="navbtn-akademik" onclick="openTab(event,'tab-akademik')">Akademik</button>
+            <button class="tab-btn" id="navbtn-suggest" onclick="openTab(event,'tab-suggest')">Suggestion &amp; Questionnaire</button>
+        </nav>
+
+        <!-- TAB HOME -->
+        <div id="tab-home" class="tab-content active">
+            <div class="glass-panel reveal" style="padding: 20px 25px 25px;">
+                <div class="panel-title" style="color: var(--teal-accent);">Home Screen</div>
+                <div class="home-dashboard-wrapper">
+                    <div class="menu-grid">
+                        <div class="menu-card card-evaluation" onclick="navigateToTab('navbtn-report','tab-report')">
+                            <span class="bell-badge">🔔</span>
+                            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                            Evaluation
+                        </div>
+                        <div class="menu-card card-progress" onclick="navigateToTab('navbtn-akademik','tab-akademik')">
+                            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+                            Progress
+                        </div>
+                        <div class="menu-card card-journal" onclick="toast('Modul Journal & Artikel akan hadir pada pembaruan mendatang.','info')">
+                            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                            Journal &amp; Artikel
+                        </div>
+                        <div class="menu-card card-psikolog" onclick="toast('Integrasi Psikolog & Psikiater sedang dikembangkan.','info')">
+                            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                            Psikolog &amp; Psikiater
+                        </div>
+                        <div class="menu-card card-questionnaire" onclick="navigateToTab('navbtn-suggest','tab-suggest')">
+                            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            Questionnaire / Test Diagnosis
+                        </div>
+                    </div>
+
+                    <div class="ai-assistant-sidebar" onclick="openChat()">
+                        <svg class="ai-robot-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="12" y="20" width="40" height="32" rx="10" fill="#00bfff" fill-opacity="0.15" stroke="#00bfff" stroke-width="3"/>
+                            <path d="M22 34C22 32.8954 22.8954 32 24 32H26C27.1046 32 28 32.8954 28 34V36C28 37.1046 27.1046 38 26 38H24C22.8954 38 22 37.1046 22 36V34Z" fill="#00e6a8"/>
+                            <path d="M36 34C36 32.8954 36.8954 32 38 32H40C41.1046 32 42 32.8954 42 34V36C42 37.1046 41.1046 38 40 38H38C36.8954 38 36 37.1046 36 36V34Z" fill="#00e6a8"/>
+                            <path d="M26 45H38" stroke="#00bfff" stroke-width="3" stroke-linecap="round"/>
+                            <path d="M32 10V20" stroke="#00bfff" stroke-width="3"/>
+                            <circle cx="32" cy="8" r="3" fill="#00e6a8"/>
+                        </svg>
+                        <div class="ai-assistant-text">AI Assistant<br><span style="color:#fff; font-size:0.75rem;">(Graphite)</span></div>
+                        <div class="ai-cta-mini">Ketuk untuk ngobrol →</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel reveal">
+                <div class="panel-title">About Us</div>
+                <p style="line-height:1.7;color:#dbdbe7;margin:0;">
+                    <strong>GrahitaNet</strong> is built upon the words <em>"grahita"</em> and <em>"net"</em>. The word <em>"grahita"</em> came from the Sanskrit word which means <strong>to understand</strong> — as that is our vision to help better understand everyone, primarily students. The word <em>"net"</em> in our case has 2 different meanings: firstly it is simply to say that we are a network; the second meaning means <strong>to capture</strong> the mental problems before it causes any more damage to the students' wellbeing.
+                </p>
+            </div>
+
+            <div class="glass-panel reveal">
+                <div class="panel-title">Find Us On</div>
+                <p class="find-us-text">Connect with GrahitaNet across our social channels and reach out to us anytime.</p>
+                <div class="socmed-grid">
+                    <a class="socmed-card" href="https://instagram.com/grahita.space" target="_blank" rel="noopener">
+                        <div class="socmed-icon ig"><svg viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></div>
+                        <div class="socmed-info"><span class="socmed-platform">Instagram</span><span class="socmed-handle">@grahita.space</span></div>
+                    </a>
+                    <a class="socmed-card" href="https://tiktok.com/@grahita.space" target="_blank" rel="noopener">
+                        <div class="socmed-icon tiktok"><svg viewBox="0 0 24 24" fill="white"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34l-.01-8.27a8.18 8.18 0 004.8 1.54V5.12a4.84 4.84 0 01-1.02-.43z"/></svg></div>
+                        <div class="socmed-info"><span class="socmed-platform">TikTok</span><span class="socmed-handle">@grahita.space</span></div>
+                    </a>
+                    <a class="socmed-card" href="https://youtube.com/@GrahitaSpace" target="_blank" rel="noopener">
+                        <div class="socmed-icon youtube"><svg viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></div>
+                        <div class="socmed-info"><span class="socmed-platform">YouTube</span><span class="socmed-handle">@GrahitaSpace</span></div>
+                    </a>
+                    <a class="socmed-card" href="mailto:gr4hita@gmail.com">
+                        <div class="socmed-icon email"><svg viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></div>
+                        <div class="socmed-info"><span class="socmed-platform">Email</span><span class="socmed-handle">gr4hita@gmail.com</span></div>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB REPORT -->
+        <div id="tab-report" class="tab-content">
+            <div class="gauge-row">
+                <div class="gauge-card">
+                    <h3>Detak Jantung</h3>
+                    <div class="gauge-wrap">
+                        <svg width="170" height="170" viewBox="0 0 170 170">
+                            <circle class="gauge-track" cx="85" cy="85" r="74"></circle>
+                            <circle id="bpm-arc" class="gauge-fill" cx="85" cy="85" r="74" stroke="#00bfff" stroke-dasharray="465" stroke-dashoffset="465"></circle>
+                        </svg>
+                        <div class="gauge-center">
+                            <div id="bpm-num" class="gauge-value">--</div>
+                            <div class="gauge-unit">BPM</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="gauge-card">
+                    <h3>Skala HRV</h3>
+                    <div class="gauge-wrap">
+                        <svg width="170" height="170" viewBox="0 0 170 170">
+                            <circle class="gauge-track" cx="85" cy="85" r="74"></circle>
+                            <circle id="hrv-arc" class="gauge-fill" cx="85" cy="85" r="74" stroke="#00e6a8" stroke-dasharray="465" stroke-dashoffset="465"></circle>
+                        </svg>
+                        <div class="gauge-center">
+                            <div id="hrv-num" class="gauge-value">--</div>
+                            <div class="gauge-unit">ms</div>
+                        </div>
+                    </div>
+                    <div id="status-chip" class="status-chip"><span class="dot"></span><span id="status-text">Menunggu data…</span></div>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">Grafik Gelombang Tren HRV &amp; BPM (Realtime Telemetry)</div>
+                <div style="position:relative;height:340px;width:100%"><canvas id="liveChart"></canvas></div>
+            </div>
+
+            <div id="stress-alert" class="alert-section">
+                <div class="alert-header">⚠️ Peringatan: Beban Belajar Terdeteksi Overload!</div>
+                <p style="margin:10px 0 0 0;color:#cbcbdf;">Sistem Grahita mendeteksi lonjakan stres. Direkomendasikan melakukan langkah intervensi berikut:</p>
+                <ul class="solution-list">
+                    <li><strong>Teknik Pernapasan 4-7-8:</strong> Tarik napas melalui hidung 4 detik, tahan 7 detik, embuskan lewat mulut perlahan 8 detik.</li>
+                    <li><strong>Reminder Istirahat:</strong> Jauhkan pandangan dari tugas selama 5 menit untuk menyegarkan saraf kognitif. Disarankan tidur lebih awal dan kurangi screen time.</li>
+                    <li><strong>Peregangan Motorik:</strong> Regangkan otot bahu dan leher untuk mengurangi tegangan fisik.</li>
+                </ul>
+                <div class="breath-box">
+                    <div id="breath-circle" class="breath-circle">Siap?</div>
+                    <div id="breath-phase" class="breath-phase"></div>
+                    <button class="breath-btn" id="breath-btn" onclick="toggleBreathing()">Mulai Latihan Napas 4-7-8</button>
+                </div>
+            </div>
+
+            <div id="normal-info" class="glass-panel">
+                <div class="panel-title">Panduan Edu-Intervensi</div>
+                <p style="margin:0;color:#a5a5c5;line-height:1.6;">Saat ini kondisi fisiologis siswa terpantau stabil. Ketika detak jantung melampaui ambang batas normal akibat stres akademis, modul peringatan darurat beserta instruksi relaksasi instan akan otomatis muncul di bagian ini.</p>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">Evaluasi Tren Stres Bulanan (Skala HRV)</div>
+                <div style="position:relative;height:280px;width:100%"><canvas id="monthlyEvaluationChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- TAB AKADEMIK -->
+        <div id="tab-akademik" class="tab-content">
+            <div class="stat-row">
+                <div class="stat-card c1"><div class="num" id="stat-avg">--</div><div class="lbl">Rata-rata Nilai</div></div>
+                <div class="stat-card c2"><div class="num" id="stat-top">--</div><div class="lbl">Nilai Tertinggi</div></div>
+                <div class="stat-card c3"><div class="num" id="stat-count">7</div><div class="lbl">Mata Pelajaran</div></div>
+            </div>
+            <div class="glass-panel">
+                <div class="panel-title">Laporan Nilai &amp; Hasil Belajar Siswa (Semester Ini)</div>
+                <div style="position:relative;height:340px;width:100%"><canvas id="semesterGradesChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- TAB SUGGEST -->
+        <div id="tab-suggest" class="tab-content">
+            <div class="glass-panel">
+                <div class="panel-title" style="justify-content:center;">Kuesioner Validasi Emosi</div>
+                <form id="evaluation-form" class="quiz-group">
+                    <label for="stress-scale">Seberapa berat beban pikiran atau kendala pemahaman materi yang kamu rasakan saat ini?</label>
+                    <div id="slider-emoji" class="slider-emoji">😐</div>
+                    <div class="slider-wrap">
+                        <div class="slider-val"><span id="slider-out">5</span> / 10</div>
+                        <input type="range" id="stress-scale" min="1" max="10" value="5">
+                        <div class="scale-hints"><span>Sangat ringan</span><span>Sangat berat</span></div>
+                    </div>
+                    <button type="submit">Kirim Hasil Evaluasi</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toast-wrap"></div>
+
+<!-- GRAPHITE CHAT -->
+<button id="chat-fab" onclick="openChat()" aria-label="Buka Graphite Assistant">
+    <svg viewBox="0 0 64 64" fill="none"><rect x="12" y="20" width="40" height="32" rx="10" fill="#060621" fill-opacity="0.2" stroke="#060621" stroke-width="3"/><rect x="22" y="32" width="6" height="6" rx="2" fill="#060621"/><rect x="36" y="32" width="6" height="6" rx="2" fill="#060621"/><path d="M26 45H38" stroke="#060621" stroke-width="3" stroke-linecap="round"/><path d="M32 10V20" stroke="#060621" stroke-width="3"/><circle cx="32" cy="8" r="3" fill="#060621"/></svg>
+</button>
+
+<div id="chat-panel">
+    <div class="chat-header">
+        <div class="ava"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="20" width="40" height="32" rx="10" fill="#060621" fill-opacity="0.2" stroke="#060621" stroke-width="3"/><rect x="22" y="32" width="6" height="6" rx="2" fill="#060621"/><rect x="36" y="32" width="6" height="6" rx="2" fill="#060621"/><path d="M26 45H38" stroke="#060621" stroke-width="3" stroke-linecap="round"/><path d="M32 10V20" stroke="#060621" stroke-width="3"/><circle cx="32" cy="8" r="3" fill="#060621"/></svg></div>
+        <div>
+            <div class="ti">Graphite</div>
+            <div class="sub"><span class="dot"></span> AI Wellbeing Assistant</div>
+        </div>
+        <button class="chat-close" onclick="closeChat()" aria-label="Tutup">×</button>
+    </div>
+    <div id="chat-messages"></div>
+    <div class="chat-suggest" id="chat-suggest">
+        <button onclick="quickAsk('Aku merasa stres karena ujian, gimana ya?')">Stres ujian</button>
+        <button onclick="quickAsk('Beri aku tips manajemen waktu belajar')">Tips belajar</button>
+        <button onclick="quickAsk('Bagaimana cara menenangkan diri saat cemas?')">Cara tenang</button>
+    </div>
+    <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Tulis pesan untuk Graphite…" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" id="chat-send" onclick="sendChat()" aria-label="Kirim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#060621" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+    </div>
+    <div class="chat-disclaimer">Graphite adalah pendamping AI dan bukan pengganti tenaga profesional. Untuk kondisi serius, hubungi psikolog, orang tua, atau orang dewasa yang kamu percaya.</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, get, push } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAFUC-lk_iJ89wRtL2J0X3BYazV18fzc5c",
+        authDomain: "grahita-space.firebaseapp.com",
+        databaseURL: "https://grahita-space-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "grahita-space",
+        storageBucket: "grahita-space.firebasestorage.app",
+        messagingSenderId: "666471277376",
+        appId: "1:666471277376:web:4f687bf0ab4a0191cb50a5",
+        measurementId: "G-YHG9QTG43E"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    /* ─── HASH PASSWORD (SHA-256 via Web Crypto) ─── */
+    async function hashPassword(pw) {
+        const data = new TextEncoder().encode(pw);
+        const buf  = await crypto.subtle.digest('SHA-256', data);
+        return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    let mainLiveChart, monthlyChart, akademikChart;
+    const GAUGE_CIRC = 465; // 2π·74 ≈ 465
+
+    /* ─── TOAST ─── */
+    window.toast = function(msg, type='ok', ms=3600) {
+        const wrap = document.getElementById('toast-wrap');
+        const t = document.createElement('div');
+        t.className = 'toast ' + (type === 'ok' ? '' : type);
+        const icon = type === 'err' ? '⚠️' : (type === 'info' ? 'ℹ️' : '✓');
+        t.innerHTML = '<span>' + icon + '</span><span>' + msg + '</span>';
+        wrap.appendChild(t);
+        setTimeout(() => { t.style.transition = 'opacity .4s, transform .4s'; t.style.opacity = '0'; t.style.transform = 'translateY(12px)'; setTimeout(()=>t.remove(), 400); }, ms);
+    };
+
+    /* ─── AUTH HELPERS ─── */
+    function getSession() { return localStorage.getItem('grahita_session') || null; }
+    function setSession(u) { localStorage.setItem('grahita_session', u); }
+    function clearSession() { localStorage.removeItem('grahita_session'); }
+
+    window.switchAuthTab = function(tab) {
+        const loginForm = document.getElementById('login-form');
+        const regForm = document.getElementById('register-form');
+        const btnLogin = document.getElementById('btn-login-tab');
+        const btnReg = document.getElementById('btn-register-tab');
+        clearAuthMessages();
+        if (tab === 'login') {
+            loginForm.style.display = 'block'; regForm.style.display = 'none';
+            btnLogin.classList.add('active'); btnReg.classList.remove('active');
+        } else {
+            loginForm.style.display = 'none'; regForm.style.display = 'block';
+            btnLogin.classList.remove('active'); btnReg.classList.add('active');
+        }
+    };
+
+    function clearAuthMessages() {
+        ['login-error','reg-error','reg-success'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = 'none'; el.textContent = ''; }
+        });
+    }
+    function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+    function showSuccess(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+
+    window.doRegister = async function() {
+        clearAuthMessages();
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const confirm  = document.getElementById('reg-confirm').value;
+
+        if (!username)              return showError('reg-error', 'Username tidak boleh kosong.');
+        if (username.length < 3)   return showError('reg-error', 'Username minimal 3 karakter.');
+        if (/[.#$\[\]\/]/.test(username)) return showError('reg-error', 'Username tidak boleh memuat karakter . # $ [ ] /');
+        if (!password)             return showError('reg-error', 'Password tidak boleh kosong.');
+        if (password.length < 6)   return showError('reg-error', 'Password minimal 6 karakter.');
+        if (password !== confirm)  return showError('reg-error', 'Konfirmasi password tidak cocok.');
+
+        const regBtn = document.querySelector('#register-form .auth-btn');
+        regBtn.textContent = 'Memproses…'; regBtn.disabled = true;
+
+        try {
+            const snap = await get(ref(db, 'Users/' + username));
+            if (snap.exists()) {
+                regBtn.textContent = 'Buat Akun'; regBtn.disabled = false;
+                return showError('reg-error', 'Username sudah digunakan. Pilih yang lain.');
+            }
+            await set(ref(db, 'Users/' + username), {
+                password: await hashPassword(password),
+                createdAt: new Date().toISOString()
+            });
+            showSuccess('reg-success', '✓ Akun berhasil dibuat! Silakan masuk.');
+            document.getElementById('reg-username').value = '';
+            document.getElementById('reg-password').value = '';
+            document.getElementById('reg-confirm').value = '';
+            setTimeout(() => switchAuthTab('login'), 1500);
+        } catch(err) {
+            showError('reg-error', 'Gagal membuat akun: ' + err.message);
+        } finally {
+            regBtn.textContent = 'Buat Akun'; regBtn.disabled = false;
+        }
+    };
+
+    window.doLogin = async function() {
+        clearAuthMessages();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        if (!username || !password)
+            return showError('login-error', 'Username dan password harus diisi.');
+
+        const loginBtn = document.querySelector('#login-form .auth-btn');
+        loginBtn.textContent = 'Memverifikasi…'; loginBtn.disabled = true;
+
+        try {
+            const snap = await get(ref(db, 'Users/' + username));
+            if (!snap.exists()) {
+                return showError('login-error', 'Username tidak ditemukan.');
+            }
+            if (snap.val().password !== await hashPassword(password)) {
+                return showError('login-error', 'Password salah. Coba lagi.');
+            }
+            // Update lastLogin
+            await set(ref(db, 'Users/' + username + '/lastLogin'), new Date().toISOString());
+            setSession(username);
+            enterApp(username);
+        } catch(err) {
+            showError('login-error', 'Gagal login: ' + err.message);
+        } finally {
+            loginBtn.textContent = 'Masuk ke Dashboard'; loginBtn.disabled = false;
+        }
+    };
+
+    window.doLogout = function() { clearSession(); location.reload(); };
+
+    /* ─── TAB SYSTEM ─── */
+    window.openTab = function(evt, tabId) {
+        const tabcontents = document.getElementsByClassName("tab-content");
+        for (let i = 0; i < tabcontents.length; i++) tabcontents[i].classList.remove("active");
+        const tablinks = document.getElementsByClassName("tab-btn");
+        for (let i = 0; i < tablinks.length; i++) tablinks[i].classList.remove("active");
+        document.getElementById(tabId).classList.add("active");
+        if (evt) { evt.currentTarget.classList.add("active"); }
+        else {
+            const btnEl = document.getElementById("navbtn-" + tabId.replace("tab-", ""));
+            if (btnEl) btnEl.classList.add("active");
+        }
+        if (tabId === 'tab-report') { if(mainLiveChart) mainLiveChart.update(); if(monthlyChart) monthlyChart.update(); }
+        if (tabId === 'tab-akademik' && akademikChart) akademikChart.update();
+        if (tabId === 'tab-home') triggerReveal();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.navigateToTab = function(btnId, tabId) {
+        const btnEl = document.getElementById(btnId);
+        if (btnEl) openTab(null, tabId);
+    };
+
+    /* ─── REVEAL ─── */
+    function triggerReveal() {
+        const els = document.querySelectorAll('#tab-home .reveal');
+        els.forEach((el, i) => { el.classList.remove('show'); setTimeout(() => el.classList.add('show'), 80 * i + 60); });
+    }
+
+    /* ─── ANIMATED COUNTER ─── */
+    function animateNumber(el, target) {
+        const start = parseInt(el.textContent) || 0;
+        if (start === target) { el.textContent = target; return; }
+        const dur = 600, t0 = performance.now();
+        function step(now) {
+            const p = Math.min((now - t0) / dur, 1);
+            el.textContent = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3)));
+            if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    }
+    function setGauge(arcEl, value, min, max) {
+        const clamped = Math.max(min, Math.min(max, value));
+        const ratio = (clamped - min) / (max - min);
+        arcEl.style.strokeDashoffset = GAUGE_CIRC * (1 - ratio);
+    }
+
+    /* ─── ENTER APP ─── */
+    function enterApp(username) {
+        document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('app-container').style.display = 'block';
+        document.getElementById('chat-fab').style.display = 'flex';
+        document.getElementById('user-display-name').textContent = username;
+        document.getElementById('user-avatar-initials').textContent = username.substring(0, 2).toUpperCase();
+        initAllCharts();
+        setupFirebaseListeners();
+        triggerReveal();
+        seedGraphite(username);
+    }
+
+    /* ─── CHARTS ─── */
+    function initAllCharts() {
+        Chart.defaults.color = '#8a8aab';
+        Chart.defaults.font.family = "'Inter', 'Segoe UI', Tahoma, sans-serif";
+        Chart.defaults.plugins.legend.labels.color = '#c1c1d6';
+
+        const ctxLive = document.getElementById('liveChart').getContext('2d');
+        const gradBpm = ctxLive.createLinearGradient(0, 0, 0, 300);
+        gradBpm.addColorStop(0, 'rgba(0, 191, 255, 0.2)'); gradBpm.addColorStop(1, 'rgba(0, 191, 255, 0.0)');
+        const gradHrvLive = ctxLive.createLinearGradient(0, 0, 0, 300);
+        gradHrvLive.addColorStop(0, 'rgba(0, 230, 168, 0.2)'); gradHrvLive.addColorStop(1, 'rgba(0, 230, 168, 0.0)');
+
+        mainLiveChart = new Chart(ctxLive, {
+            type: 'line',
+            data: { labels: Array(10).fill(''), datasets: [
+                { label: 'Realtime Detak Jantung (BPM)', borderColor: '#00bfff', borderWidth: 3, pointRadius: 2, pointHoverRadius: 6, backgroundColor: gradBpm, fill: true, tension: 0.43, data: Array(10).fill(null), yAxisID: 'y-bpm' },
+                { label: 'Realtime Skala HRV (ms)', borderColor: '#00e6a8', borderWidth: 3, pointRadius: 2, pointHoverRadius: 6, backgroundColor: gradHrvLive, fill: true, tension: 0.43, data: Array(10).fill(null), yAxisID: 'y-hrv' }
+            ]},
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'top' } },
+                scales: {
+                    x: { grid: { display: false } },
+                    'y-bpm': { type: 'linear', position: 'left', title: { display: true, text: 'BPM', color: '#00bfff' }, grid: { color: 'rgba(255,255,255,0.03)' }, min: 50, max: 140 },
+                    'y-hrv': { type: 'linear', position: 'right', title: { display: true, text: 'HRV (ms)', color: '#00e6a8' }, grid: { display: false }, min: 20, max: 130 }
+                }
+            }
+        });
+
+        const ctxMonthly = document.getElementById('monthlyEvaluationChart').getContext('2d');
+        const hrvGrad = ctxMonthly.createLinearGradient(0, 0, 0, 250);
+        hrvGrad.addColorStop(0, 'rgba(0, 230, 168, 0.25)'); hrvGrad.addColorStop(1, 'rgba(0, 230, 168, 0.0)');
+        monthlyChart = new Chart(ctxMonthly, {
+            type: 'line',
+            data: { labels: ['Jan','Feb','Mar','Apr','Mei','Jun'], datasets: [{ label: 'Rata-rata HRV (ms)', data: [72,68,55,78,62,80], borderColor: '#00e6a8', borderWidth: 3, fill: true, backgroundColor: hrvGrad, tension: 0.4, pointBackgroundColor: '#00e6a8', pointHoverRadius: 7 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, min: 40 } } }
+        });
+
+        const grades = [88,76,92,85,90,84,95];
+        const ctxAkademik = document.getElementById('semesterGradesChart').getContext('2d');
+        const barGrad = ctxAkademik.createLinearGradient(0, 0, 0, 300);
+        barGrad.addColorStop(0, '#00e6a8'); barGrad.addColorStop(1, '#00bfff');
+        akademikChart = new Chart(ctxAkademik, {
+            type: 'bar',
+            data: { labels: ['Matematika','Fisika','Biologi','Kimia','B. Indonesia','B. Inggris','Informatika'], datasets: [{ label: 'Nilai Tugas & Ujian', data: grades, backgroundColor: barGrad, hoverBackgroundColor: '#00e6a8', borderRadius: 8, borderSkipped: false, barPercentage: 0.5 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, min: 0, max: 100 } } }
+        });
+
+        // academic summary stats
+        const avg = Math.round(grades.reduce((a,b)=>a+b,0)/grades.length);
+        animateNumber(document.getElementById('stat-avg'), avg);
+        animateNumber(document.getElementById('stat-top'), Math.max(...grades));
+    }
+
+    /* ─── FIREBASE SYNC ─── */
+    function setupFirebaseListeners() {
+        const bpmNumEl = document.getElementById('bpm-num');
+        const hrvNumEl = document.getElementById('hrv-num');
+        const bpmArc = document.getElementById('bpm-arc');
+        const hrvArc = document.getElementById('hrv-arc');
+        const stressAlert = document.getElementById('stress-alert');
+        const normalInfo = document.getElementById('normal-info');
+        const chip = document.getElementById('status-chip');
+        const chipText = document.getElementById('status-text');
+
+        onValue(ref(db, 'Sensor'), (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            const currentBpm = parseInt(data.BPM) || 0;
+            const currentHrv = parseInt(data.HRV) || 0;
+
+            // ── Simpan riwayat sensor & daftarkan device ──
+            if (currentBpm > 0 || currentHrv > 0) {
+                const deviceId = (data.deviceId || 'default-device')
+                    .replace(/[.#$\[\]\/]/g, '_');      // sanitasi key Firebase
+
+                // Simpan setiap pembacaan sebagai entri baru (push = key unik otomatis)
+                push(ref(db, 'SensorHistory/' + deviceId), {
+                    bpm: currentBpm,
+                    hrv: currentHrv,
+                    t: Date.now()
+                });
+
+                // Perbarui info device yang terdeteksi
+                set(ref(db, 'Devices/' + deviceId + '/info'), {
+                    lastSeen: new Date().toISOString(),
+                    lastBpm: currentBpm,
+                    lastHrv: currentHrv,
+                    status: 'active'
+                });
+            }
+            // ── End simpan riwayat ──
+
+            animateNumber(bpmNumEl, currentBpm);
+            animateNumber(hrvNumEl, currentHrv);
+            setGauge(bpmArc, currentBpm, 50, 140);
+            setGauge(hrvArc, currentHrv, 20, 130);
+
+            const now = new Date();
+            const timeLabel = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+            if (mainLiveChart) {
+                mainLiveChart.data.labels.push(timeLabel);
+                mainLiveChart.data.datasets[0].data.push(currentBpm);
+                mainLiveChart.data.datasets[1].data.push(currentHrv);
+                if (mainLiveChart.data.labels.length > 10) {
+                    mainLiveChart.data.labels.shift();
+                    mainLiveChart.data.datasets[0].data.shift();
+                    mainLiveChart.data.datasets[1].data.shift();
+                }
+                mainLiveChart.update('none');
+            }
+
+            const stressed = currentBpm > 100 || (currentHrv < 55 && currentHrv > 0);
+            if (stressed) {
+                stressAlert.style.display = 'block'; normalInfo.style.display = 'none';
+                chip.classList.add('warn'); chipText.textContent = 'Stres terdeteksi';
+            } else {
+                stressAlert.style.display = 'none'; normalInfo.style.display = 'block';
+                chip.classList.remove('warn'); chipText.textContent = currentBpm ? 'Kondisi stabil' : 'Menunggu data…';
+            }
+        });
+    }
+
+    /* ─── BREATHING 4-7-8 ─── */
+    let breathTimers = [];
+    window.toggleBreathing = function() {
+        const circle = document.getElementById('breath-circle');
+        const phase = document.getElementById('breath-phase');
+        const btn = document.getElementById('breath-btn');
+        if (circle.classList.contains('run')) {
+            circle.classList.remove('run'); circle.textContent = 'Siap?';
+            phase.textContent = ''; btn.textContent = 'Mulai Latihan Napas 4-7-8';
+            breathTimers.forEach(clearTimeout); breathTimers = [];
+            return;
+        }
+        circle.classList.add('run'); btn.textContent = 'Hentikan';
+        const cycle = () => {
+            phase.textContent = 'Tarik napas…'; circle.textContent = 'Tarik (4d)';
+            breathTimers.push(setTimeout(() => { phase.textContent = 'Tahan…'; circle.textContent = 'Tahan (7d)'; }, 4000));
+            breathTimers.push(setTimeout(() => { phase.textContent = 'Embuskan perlahan…'; circle.textContent = 'Embus (8d)'; }, 11000));
+        };
+        cycle();
+        breathTimers.push(setInterval(cycle, 19000));
+    };
+
+    /* ─── QUESTIONNAIRE SLIDER ─── */
+    const slider = document.getElementById('stress-scale');
+    const sliderOut = document.getElementById('slider-out');
+    const sliderEmoji = document.getElementById('slider-emoji');
+    const emojiMap = ['😄','😄','🙂','🙂','😐','😐','😟','😟','😣','😰','😭'];
+    function updateSlider() {
+        const v = parseInt(slider.value);
+        sliderOut.textContent = v;
+        sliderEmoji.textContent = emojiMap[v];
+        sliderEmoji.style.transform = 'scale(1.18)';
+        setTimeout(() => sliderEmoji.style.transform = 'scale(1)', 150);
+    }
+    slider.addEventListener('input', updateSlider);
+    updateSlider();
+
+    document.getElementById('evaluation-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const score = slider.value;
+        const currentUser = getSession() || "anonymous";
+        set(ref(db, 'Evaluasi_Subjektif/' + currentUser + '_' + Date.now()), {
+            username: currentUser, skala_stres: score, timestamp: new Date().toISOString()
+        }).then(() => {
+            toast('Hasil evaluasi emosi berhasil dikirim. Terima kasih sudah memvalidasi kondisimu!', 'ok');
+            slider.value = 5; updateSlider();
+        }).catch(err => toast('Gagal mengirim data: ' + err.message, 'err'));
+    });
+
+    /* ─── GRAPHITE AI CHAT ─── */
+    const chatHistory = [];
+    const SYSTEM_PROMPT = `Kamu adalah "Graphite", asisten AI pendamping kesejahteraan (wellbeing) di dalam aplikasi Grahita — sistem pemantauan stres berbasis wearable IoT untuk pelajar di Indonesia. Gaya bicaramu hangat, suportif, empatik, dan ringkas (maksimal 4-5 kalimat per balasan). Selalu balas dalam Bahasa Indonesia yang santai dan ramah untuk pelajar.
+
+Tugasmu: membantu pelajar mengelola stres akademis, memberi tips belajar, manajemen waktu, teknik relaksasi (mis. pernapasan 4-7-8), dan menjadi teman bicara yang mendengarkan.
+
+Batasan penting:
+- Kamu BUKAN psikolog/psikiater dan tidak boleh memberi diagnosis medis.
+- Jika pengguna menunjukkan tanda krisis serius, tekanan emosional berat, atau menyakiti diri, dorong dengan lembut untuk berbicara dengan orang tua, guru BK, psikolog, atau orang dewasa yang dipercaya, dan sebutkan layanan darurat seperti Hotline Kemenkes/Sejiwa 119 ext 8 di Indonesia.
+- Jangan pernah memberi instruksi yang membahayakan.
+- Jangan mengarang data sensor; jika ditanya soal data BPM/HRV pribadi, arahkan untuk melihat tab Report.
+
+Jaga nada positif tanpa memaksa. Validasi perasaan pengguna sebelum memberi saran.`;
+
+    window.openChat = function() {
+        document.getElementById('chat-panel').style.display = 'flex';
+        document.getElementById('chat-input').focus();
+    };
+    window.closeChat = function() { document.getElementById('chat-panel').style.display = 'none'; };
+
+    function seedGraphite(username) {
+        const box = document.getElementById('chat-messages');
+        if (box.dataset.seeded) return;
+        box.dataset.seeded = '1';
+        addMsg('bot', `Hai ${username}! Aku Graphite, teman pendampingmu di Grahita. 🌱 Lagi gimana perasaanmu hari ini? Aku siap dengerin atau bantu kasih tips belajar & relaksasi.`);
+    }
+
+    function addMsg(role, text) {
+        const box = document.getElementById('chat-messages');
+        const el = document.createElement('div');
+        el.className = 'msg ' + role;
+        el.textContent = text;
+        box.appendChild(el);
+        box.scrollTop = box.scrollHeight;
+        return el;
+    }
+
+    window.quickAsk = function(text) {
+        document.getElementById('chat-input').value = text;
+        sendChat();
+    };
+
+    window.sendChat = async function() {
+        const input = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('chat-send');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        addMsg('user', text);
+        chatHistory.push({ role: 'user', content: text });
+        document.getElementById('chat-suggest').style.display = 'none';
+
+        sendBtn.disabled = true;
+        const box = document.getElementById('chat-messages');
+        const typing = document.createElement('div');
+        typing.className = 'msg bot typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        box.appendChild(typing); box.scrollTop = box.scrollHeight;
+
+        try {
+            const response = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-6",
+                    max_tokens: 1000,
+                    system: SYSTEM_PROMPT,
+                    messages: chatHistory
+                })
+            });
+            const data = await response.json();
+            const reply = (data.content || []).map(b => b.type === 'text' ? b.text : '').filter(Boolean).join('\n').trim()
+                || 'Maaf, aku lagi kesulitan menjawab. Coba lagi sebentar ya.';
+            typing.remove();
+            addMsg('bot', reply);
+            chatHistory.push({ role: 'assistant', content: reply });
+        } catch (err) {
+            typing.remove();
+            addMsg('bot', 'Maaf, koneksi ke Graphite sedang bermasalah. Coba kirim ulang pesanmu ya. 🙏');
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    };
+
+    /* ─── COLD START ─── */
+    document.addEventListener("DOMContentLoaded", () => {
+        const activeUser = getSession();
+        if (activeUser) enterApp(activeUser);
+        // mouse-follow glow on menu cards
+        document.querySelectorAll('.menu-card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const r = card.getBoundingClientRect();
+                card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+                card.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
