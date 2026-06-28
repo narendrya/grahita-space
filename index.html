@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grahita Space — Wearable IoT Stress Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ══ THEME VARIABLES ══ */
+    :root {
+      --accent-teal:   #00e6a8;
+      --accent-cyan:   #00bfff;
+      --accent-purple: #b19ffb;
+      --color-optimal: #00e6a8;
+      --color-load:    #fbbf24;
+      --color-over:    #f87171;
+      --grad:          linear-gradient(135deg,#00e6a8,#00bfff);
+    }
+    [data-theme="dark"] {
+      --bg:        #060621; --bg2:     #0d0d2e;
+      --card:      rgba(255,255,255,0.03);
+      --cardh:     rgba(255,255,255,0.07);
+      --inp:       rgba(255,255,255,0.06);
+      --sidebar:   #08082a;
+      --border:    rgba(255,255,255,0.09);
+      --txt:       #f0f0ff; --muted:  #8a8aab; --soft:   #c1c1d6;
+      --shadow:    0 8px 32px rgba(0,0,0,0.4);
+      --grid:      rgba(255,255,255,0.025);
+      --orb:       0.3;
+      --ph:        #4a4a6a; --itxt:   #ffffff;
+      --sborder:   rgba(255,255,255,0.06);
+      --cgrid:     rgba(255,255,255,0.05); --clbl: #8a8aab;
+      --auth-bg:   radial-gradient(ellipse at top,#0d0d35 0%,#060621 70%);
+      --chat-ai:   rgba(255,255,255,0.05);
+    }
+    [data-theme="light"] {
+      --bg:        #f0f4ff; --bg2:    #e8eeff;
+      --card:      rgba(255,255,255,0.75);
+      --cardh:     rgba(255,255,255,0.95);
+      --inp:       rgba(255,255,255,0.9);
+      --sidebar:   #ffffff;
+      --border:    rgba(0,0,0,0.08);
+      --txt:       #0f1132; --muted:  #6b7280; --soft:   #374151;
+      --shadow:    0 8px 32px rgba(0,0,0,0.1);
+      --grid:      rgba(0,0,0,0.04);
+      --orb:       0.1;
+      --ph:        #9ca3af; --itxt:   #0f1132;
+      --sborder:   rgba(0,0,0,0.07);
+      --cgrid:     rgba(0,0,0,0.06); --clbl: #6b7280;
+      --auth-bg:   radial-gradient(ellipse at top,#dde6ff 0%,#f0f4ff 70%);
+      --chat-ai:   rgba(255,255,255,0.85);
+    }
+
+    /* ══ RESET ══ */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;transition:background .4s,color .4s}
+    a{color:var(--accent-teal);text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    /* ══ BACKGROUND ══ */
+    #bg-fx{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}
+    .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:var(--orb);animation:drift 22s ease-in-out infinite alternate;transition:opacity .4s}
+    .orb.a{width:420px;height:420px;background:var(--accent-teal);top:-120px;left:-100px}
+    .orb.b{width:460px;height:460px;background:var(--accent-cyan);bottom:-160px;right:-120px;animation-delay:-7s}
+    .orb.c{width:320px;height:320px;background:var(--accent-purple);top:40%;left:55%;animation-delay:-13s}
+    @keyframes drift{from{transform:translate(0,0)scale(1)}to{transform:translate(60px,40px)scale(1.15)}}
+    #bg-grid{position:fixed;inset:0;z-index:-1;pointer-events:none;
+      background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+      background-size:48px 48px;
+      mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 40%,transparent 100%);
+      -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 40%,transparent 100%)}
+
+    /* ══ THEME TOGGLE ══ */
+    .theme-toggle{width:42px;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;transition:all .3s;flex-shrink:0}
+    .theme-toggle:hover{border-color:var(--accent-teal);box-shadow:0 0 14px rgba(0,230,168,.25);transform:scale(1.08)}
+    .auth-theme-wrap{position:absolute;top:16px;right:16px;z-index:10}
+
+    /* ══ GLASS CARD ══ */
+    .glass-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:1.75rem;box-shadow:var(--shadow);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:background .4s,border-color .3s,box-shadow .3s}
+    .glass-card:hover{background:var(--cardh)}
+    .glass-card h3{font-family:'Outfit',sans-serif;margin-bottom:1rem;font-size:1.15rem}
+
+    /* ══ BUTTONS ══ */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:.7rem 1.4rem;border-radius:10px;border:none;font-size:.9rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
+    .btn:hover{transform:translateY(-2px)}
+    .btn:active{transform:translateY(0)}
+    .btn-primary{background:var(--grad);color:#060621;box-shadow:0 4px 14px rgba(0,230,168,.3)}
+    .btn-primary:hover{box-shadow:0 6px 20px rgba(0,230,168,.45)}
+    .btn-secondary{background:var(--card);border:1px solid var(--border);color:var(--txt)}
+    .btn-secondary:hover{border-color:var(--accent-teal);color:var(--accent-teal)}
+    .btn-danger{background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:#f87171}
+    .btn-danger:hover{background:rgba(248,113,113,.25)}
+
+    /* ══ FORMS ══ */
+    .form-group{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1.1rem}
+    .form-label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+    .form-input,.form-select{background:var(--inp);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;color:var(--itxt);font-size:.95rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s,background .3s;width:100%}
+    .form-input:focus,.form-select:focus{border-color:var(--accent-teal);box-shadow:0 0 0 3px rgba(0,230,168,.12)}
+    .form-input::placeholder{color:var(--ph)}
+    .form-select option{background:var(--bg2);color:var(--txt)}
+    .err-box{display:none;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);border-radius:8px;padding:10px 14px;color:#f87171;font-size:.85rem;text-align:center;margin-bottom:.5rem}
+    .ok-box{display:none;background:rgba(0,230,168,.1);border:1px solid rgba(0,230,168,.4);border-radius:8px;padding:10px 14px;color:#00e6a8;font-size:.85rem;text-align:center;margin-bottom:.5rem}
+
+    /* ══ AUTH ══ */
+    .page-section{display:none}
+    .page-section.active-section{display:block}
+    .auth-wrapper{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--auth-bg);transition:background .4s;position:relative}
+    .auth-card{width:100%;max-width:440px;position:relative;overflow:hidden}
+    .auth-card::before{content:"";position:absolute;top:-1px;left:-1px;right:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--accent-teal),var(--accent-cyan),transparent)}
+    .auth-title{font-family:'Outfit',sans-serif;font-size:2.2rem;font-weight:800;letter-spacing:4px;color:var(--accent-teal);text-align:center;margin-bottom:.25rem;text-shadow:0 0 24px rgba(0,230,168,.4)}
+    .auth-subtitle{text-align:center;color:var(--muted);font-size:.85rem;margin-bottom:2rem}
+    .pulse-line{width:60px;height:2px;margin:.6rem auto 0;background:linear-gradient(90deg,transparent,var(--accent-cyan),transparent);position:relative}
+    .pulse-line::after{content:"";position:absolute;top:-3px;left:0;width:8px;height:8px;border-radius:50%;background:var(--accent-cyan);box-shadow:0 0 10px var(--accent-cyan);animation:scanLine 2.4s ease-in-out infinite}
+    @keyframes scanLine{0%,100%{left:0;opacity:.3}50%{left:52px;opacity:1}}
+
+    /* ══ APP LAYOUT ══ */
+    .app-container{display:flex;min-height:100vh}
+    .app-sidebar{width:240px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--sborder);display:flex;flex-direction:column;padding:1.5rem 1rem;position:sticky;top:0;height:100vh;overflow-y:auto;transition:background .4s,border-color .3s}
+    .logo-text{font-family:'Outfit',sans-serif;font-size:1.3rem;font-weight:800;color:var(--accent-teal);letter-spacing:2px;margin-bottom:2rem;text-shadow:0 0 12px rgba(0,230,168,.3)}
+    .sidebar-menu{list-style:none;display:flex;flex-direction:column;gap:4px;flex:1}
+    .sidebar-link{display:block;padding:.65rem 1rem;border-radius:10px;color:var(--muted);font-size:.9rem;font-weight:500;cursor:pointer;transition:all .2s;text-decoration:none}
+    .sidebar-link:hover{background:var(--card);color:var(--txt)}
+    .sidebar-link.active{background:linear-gradient(135deg,rgba(0,230,168,.15),rgba(0,191,255,.15));color:var(--accent-teal);border:1px solid rgba(0,230,168,.2)}
+    .sidebar-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+    .main-content{flex:1;display:flex;flex-direction:column;min-width:0}
+    .app-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem;border-bottom:1px solid var(--border);background:var(--card);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;transition:background .4s,border-color .3s}
+    .app-header h2{font-family:'Outfit',sans-serif;font-size:1.3rem;color:var(--txt)}
+    .hdr-right{display:flex;align-items:center;gap:12px}
+    .user-badge{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:6px 14px 6px 8px;transition:background .3s}
+    .user-avatar{width:30px;height:30px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#060621;font-family:'Outfit',sans-serif}
+    .user-name{font-size:.85rem;color:var(--soft);font-weight:600}
+    .role-tag{padding:3px 10px;border-radius:50px;font-size:.72rem;font-weight:700;background:rgba(0,230,168,.15);color:var(--accent-teal);border:1px solid rgba(0,230,168,.25);text-transform:uppercase;letter-spacing:.5px}
+    .page-content{padding:2rem;flex:1}
+
+    /* ══ SUB TABS ══ */
+    .sub-tabs{display:flex;gap:6px;margin-bottom:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:6px;flex-wrap:wrap;transition:background .4s}
+    .sub-tab{padding:.6rem 1.2rem;border-radius:9px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--muted);transition:all .25s}
+    .sub-tab:hover{color:var(--accent-cyan);background:var(--cardh)}
+    .sub-tab.active{background:var(--grad);color:#060621;box-shadow:0 3px 12px rgba(0,230,168,.3)}
+    .sub-pane{display:none}
+    .sub-pane.active{display:block;animation:fadeIn .4s ease}
+
+    /* ══ GRIDS ══ */
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+    .teacher-grid{display:grid;grid-template-columns:280px 1fr;gap:1.5rem}
+
+    /* ══ STAT CARDS ══ */
+    .stat-card{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+    .stat-info{display:flex;flex-direction:column;gap:4px}
+    .stat-val{font-family:'Outfit',sans-serif;font-size:2.8rem;font-weight:700;line-height:1;color:var(--txt)}
+    .stat-ico{font-size:2rem;opacity:.7}
+
+    /* ══ STRESS RING ══ */
+    .stress-ring{width:160px;height:160px;border-radius:50%;border:6px solid var(--accent-teal);display:flex;align-items:center;justify-content:center;margin:1.5rem auto;font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:800;color:var(--accent-teal);letter-spacing:1px;text-align:center;box-shadow:0 0 30px rgba(0,230,168,.3);transition:all .5s}
+
+    /* ══ QUESTIONNAIRE ══ */
+    .q-opts{display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem}
+    .radio-btn{display:flex;align-items:center;gap:8px;padding:.6rem 1.2rem;border-radius:10px;border:1px solid var(--border);cursor:pointer;color:var(--muted);font-size:.9rem;transition:all .2s;background:var(--card)}
+    .radio-btn input{accent-color:var(--accent-teal)}
+    .radio-btn:hover{border-color:var(--accent-teal);color:var(--accent-teal)}
+    .radio-btn.selected{border-color:var(--accent-teal);background:rgba(0,230,168,.1);color:var(--accent-teal)}
+
+    /* ══ CHAT ══ */
+    .chat-win{display:flex;flex-direction:column;height:calc(100vh - 180px);min-height:500px}
+    .chat-hist{flex:1;overflow-y:auto;padding:1rem 0;display:flex;flex-direction:column;gap:1rem}
+    .chat-hist::-webkit-scrollbar{width:6px}
+    .chat-hist::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+    .bubble{max-width:75%;padding:.9rem 1.2rem;border-radius:16px;font-size:.92rem;line-height:1.55;white-space:pre-wrap;word-wrap:break-word}
+    .bubble.ai{background:var(--chat-ai);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px;color:var(--soft)}
+    .bubble.user{background:var(--grad);color:#060621;font-weight:500;align-self:flex-end;border-bottom-right-radius:4px}
+    .bubble.typing{display:flex;gap:5px;align-items:center}
+    .bubble.typing span{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+    .bubble.typing span:nth-child(2){animation-delay:.2s}
+    .bubble.typing span:nth-child(3){animation-delay:.4s}
+    @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+    .chat-foot{padding-top:1rem;border-top:1px solid var(--border);margin-top:1rem}
+    .chat-row{display:flex;gap:.75rem}
+
+    /* ══ TABLES ══ */
+    .gtable{width:100%;border-collapse:collapse;font-size:.88rem}
+    .gtable th{padding:.75rem 1rem;text-align:left;color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+    .gtable td{padding:.75rem 1rem;border-bottom:1px solid var(--border);color:var(--soft)}
+    .gtable tr:hover td{background:var(--cardh)}
+    .gtable tr:last-child td{border-bottom:none}
+
+    /* ══ BREATHING ══ */
+    .breath-overlay{position:fixed;inset:0;background:rgba(6,6,33,.92);display:none;align-items:center;justify-content:center;z-index:9999;opacity:0;transition:opacity .4s;backdrop-filter:blur(12px)}
+    .breath-box{text-align:center;padding:3rem;background:var(--card);border:1px solid var(--border);border-radius:24px;max-width:480px;width:90%}
+    .breath-circle-wrap{position:relative;width:180px;height:180px;margin:2rem auto}
+    .breath-ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(0,230,168,.2)}
+    .breath-ball{position:absolute;inset:20px;border-radius:50%;background:radial-gradient(circle,rgba(0,230,168,.2),rgba(0,191,255,.05));border:2px solid var(--accent-teal);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:var(--accent-teal);box-shadow:0 0 30px rgba(0,230,168,.25);transition:transform 1s ease}
+    .breath-instr{font-size:1.2rem;font-weight:600;margin-top:1rem;color:var(--accent-teal)}
+    .breath-timer{font-family:'Outfit',sans-serif;font-size:3.5rem;font-weight:800;color:var(--txt);margin:.5rem 0}
+
+    /* ══ TOAST ══ */
+    #toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9998;display:flex;flex-direction:column;gap:10px;align-items:center}
+    .toast{background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--accent-teal);color:var(--soft);padding:14px 20px;border-radius:12px;font-size:.9rem;max-width:90vw;box-shadow:var(--shadow);backdrop-filter:blur(10px);animation:toastIn .35s ease;display:flex;align-items:center;gap:10px}
+    .toast.err{border-left-color:#f87171}
+    .toast.info{border-left-color:var(--accent-cyan)}
+    @keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+    /* ══ UTILS ══ */
+    .mt1{margin-top:1rem}.mt2{margin-top:1.5rem}.mb1{margin-bottom:1rem}.mb2{margin-bottom:1.5rem}
+    .student-list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+    .student-item{padding:.7rem 1rem;border-radius:10px;cursor:pointer;border:1px solid var(--border);color:var(--soft);font-size:.88rem;transition:all .2s;background:var(--card)}
+    .student-item:hover,.student-item.sel{border-color:var(--accent-teal);color:var(--accent-teal);background:rgba(0,230,168,.08)}
+
+    /* ══ RESPONSIVE ══ */
+    @media(max-width:900px){.grid2,.teacher-grid{grid-template-columns:1fr}.grid3{grid-template-columns:1fr 1fr}}
+    @media(max-width:640px){.app-sidebar{display:none}.grid3{grid-template-columns:1fr}.app-header{padding:.75rem 1rem}.page-content{padding:1rem}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+
+<div id="bg-fx"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
+<div id="bg-grid"></div>
+<div id="toast-wrap"></div>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login-section" class="page-section active-section">
+  <div class="auth-wrapper">
+    <div class="glass-card auth-card">
+      <button class="theme-toggle auth-theme-wrap" onclick="toggleTheme()" title="Ganti Tema">🌙</button>
+      <h1 class="auth-title">Grahita Space</h1>
+      <div class="pulse-line"></div>
+      <p class="auth-subtitle">Platform Pendamping Gelang IoT Deteksi Stres</p>
+      <form id="form-login">
+        <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="login-username" placeholder="Masukkan username" autocomplete="username" required></div>
+        <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="login-password" placeholder="Masukkan password" autocomplete="current-password" required></div>
+        <div id="login-error" class="err-box"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem;">Masuk ke Dashboard</button>
+      </form>
+      <p style="text-align:center;margin-top:1.25rem;font-size:.88rem;color:var(--muted);">Belum punya akun? <a href="#" onclick="showSection('register-section');return false;">Daftar Sekarang</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ REGISTER ═══ -->
+<div id="register-section" class="page-section">
+  <div class="auth-wrapper">
+    <div class="glass-card auth-card">
+      <button class="theme-toggle auth-theme-wrap" onclick="toggleTheme()" title="Ganti Tema">🌙</button>
+      <h1 class="auth-title">Daftar Akun</h1>
+      <div class="pulse-line"></div>
+      <p class="auth-subtitle">Gabung ke Ekosistem Grahita Space</p>
+      <form id="form-register">
+        <div class="form-group"><label class="form-label">Nama Lengkap</label><input class="form-input" type="text" id="reg-name" placeholder="Nama lengkap Anda" required></div>
+        <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="reg-username" placeholder="Username unik (min. 3 karakter)" required></div>
+        <div class="form-group">
+          <label class="form-label">Saya adalah</label>
+          <select class="form-select" id="reg-role" required>
+            <option value="siswa">Siswa</option>
+            <option value="orang_tua">Orang Tua Siswa</option>
+            <option value="guru_bk">Guru BK</option>
+          </select>
+        </div>
+        <div class="form-group" id="reg-extra-group"><label class="form-label" id="reg-extra-label">ID Siswa (Pairing Gelang)</label><input class="form-input" type="text" id="reg-extra" placeholder="Contoh: GR-XI-04" required></div>
+        <div class="form-group" id="reg-bk-group" style="display:none;"><label class="form-label">Kode Verifikasi Guru BK</label><input class="form-input" type="password" id="reg-bk-code" placeholder="Masukkan kode sekolah"></div>
+        <div class="form-group"><label class="form-label">Password (min. 6 karakter)</label><input class="form-input" type="password" id="reg-password" placeholder="Masukkan password" required></div>
+        <div id="reg-error" class="err-box"></div>
+        <div id="reg-success" class="ok-box"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem;">Buat Akun</button>
+      </form>
+      <p style="text-align:center;margin-top:1.25rem;font-size:.88rem;color:var(--muted);">Sudah punya akun? <a href="#" onclick="showSection('login-section');return false;">Masuk</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="authenticated-panel" class="app-container" style="display:none;">
+  <aside class="app-sidebar">
+    <div class="logo-text">Grahita Space</div>
+    <ul class="sidebar-menu">
+      <li class="role-siswa-only"><a class="sidebar-link active" onclick="navigateTo('dashboard-siswa')">📊 Dashboard Siswa</a></li>
+      <li class="role-siswa-only"><a class="sidebar-link" onclick="navigateTo('graphite-ai')">🤖 Tanya Graphite AI</a></li>
+      <li class="role-guru-only"><a class="sidebar-link active" onclick="navigateTo('dashboard-guru')">📋 Dashboard Guru BK</a></li>
+      <li class="role-ortu-only"><a class="sidebar-link active" onclick="navigateTo('dashboard-ortu')">👨‍👩‍👧 Dashboard Orang Tua</a></li>
+    </ul>
+    <div class="sidebar-bottom">
+      <button onclick="toggleTheme()" class="btn btn-secondary" style="width:100%;justify-content:flex-start;gap:10px;" id="sidebar-theme-btn">🌙 Mode Gelap</button>
+      <button onclick="handleLogout()" class="btn btn-danger" style="width:100%;">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="app-header">
+      <h2 id="page-title">Monitoring System</h2>
+      <div class="hdr-right">
+        <button class="theme-toggle" id="header-theme-btn" onclick="toggleTheme()" title="Ganti Tema">🌙</button>
+        <div class="user-badge">
+          <div class="user-avatar" id="user-avatar-initials">?</div>
+          <span class="user-name" id="user-display-name">Loading...</span>
+          <span class="role-tag" id="user-display-role">—</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- SISWA DASHBOARD -->
+      <div id="dashboard-siswa-section" class="page-section">
+        <div class="sub-tabs">
+          <div class="sub-tab active" onclick="switchTab('home')">Home</div>
+          <div class="sub-tab" onclick="switchTab('health')">Stress &amp; Health</div>
+          <div class="sub-tab" onclick="switchTab('academic')">Academic</div>
+          <div class="sub-tab" onclick="switchTab('questionnaire')">Questionnaire</div>
+        </div>
+
+        <div id="pane-home" class="sub-pane active">
+          <div class="glass-card">
+            <h3 style="font-size:1.8rem;margin-bottom:1rem;">Selamat Datang di Grahita Space 👋</h3>
+            <p style="color:var(--muted);margin-bottom:1.5rem;max-width:700px;line-height:1.7;">Platform pendamping gelang IoT pendeteksi stres kognitif. Sistem memantau BPM dan HRV secara real-time untuk memberikan intervensi relaksasi dini.</p>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem;">
+              <button class="btn btn-primary" onclick="switchTab('health')">📊 Lihat Telemetry Stres</button>
+              <button class="btn btn-secondary" onclick="navigateTo('graphite-ai')">🤖 Konsultasi Graphite AI</button>
+            </div>
+            <hr style="border:0;border-top:1px solid var(--border);margin-bottom:2rem;">
+            <h4 style="margin-bottom:1rem;color:var(--soft);">Hubungi Tim Grahita Space</h4>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+              <a href="https://instagram.com/grahita.space" target="_blank" class="btn btn-secondary">📸 Instagram</a>
+              <a href="mailto:gr4hita@gmail.com" class="btn btn-secondary">✉️ Email Kami</a>
+            </div>
+          </div>
+        </div>
+
+        <div id="pane-health" class="sub-pane">
+          <div class="grid3">
+            <div class="glass-card stat-card">
+              <div class="stat-info"><span style="color:var(--muted);font-size:.88rem;">Denyut Jantung</span><span class="stat-val"><span id="live-bpm" style="color:var(--accent-cyan);">--</span></span><span style="font-size:.8rem;color:var(--color-optimal);">BPM</span></div>
+              <div class="stat-ico">❤️</div>
+            </div>
+            <div class="glass-card stat-card">
+              <div class="stat-info"><span style="color:var(--muted);font-size:.88rem;">Heart Rate Variability</span><span class="stat-val"><span id="live-hrv" style="color:var(--accent-teal);">--</span></span><span style="font-size:.8rem;color:var(--muted);">ms HRV</span></div>
+              <div class="stat-ico">⚡</div>
+            </div>
+            <div class="glass-card stat-card">
+              <div class="stat-info"><span style="color:var(--muted);font-size:.88rem;">Status Kondisi</span><span class="stat-val" id="live-status" style="font-size:1.4rem;color:var(--accent-teal);">Stabil</span></div>
+              <div class="stat-ico">📡</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="glass-card" style="text-align:center;">
+              <h3>Tingkat Stres Kognitif</h3>
+              <div class="stress-ring" id="stress-ring"><span id="stress-val">LOADING</span></div>
+              <p id="stress-guide" style="font-size:.9rem;color:var(--muted);max-width:300px;margin:0 auto 1rem;">Membaca data sensor gelang IoT...</p>
+              <button onclick="bukaModal()" class="btn btn-secondary">🌬️ Mulai Napas 4-7-8</button>
+            </div>
+            <div class="glass-card">
+              <h3>Live Telemetry (BPM &amp; HRV)</h3>
+              <div style="position:relative;height:250px;width:100%"><canvas id="chart-live"></canvas></div>
+            </div>
+          </div>
+          <div class="glass-card">
+            <h3>Evaluasi Tren Stres Bulanan (HRV)</h3>
+            <div style="position:relative;height:280px;width:100%"><canvas id="chart-monthly"></canvas></div>
+          </div>
+        </div>
+
+        <div id="pane-academic" class="sub-pane">
+          <div class="grid3">
+            <div class="glass-card"><span style="color:var(--muted);font-size:.85rem;">Nilai Rata-rata</span><div class="stat-val" style="color:var(--accent-teal);margin:.5rem 0;">86.5</div><span style="font-size:.8rem;color:var(--color-optimal);">Di atas standar kelulusan</span></div>
+            <div class="glass-card"><span style="color:var(--muted);font-size:.85rem;">Nilai Tertinggi</span><div class="stat-val" style="color:var(--accent-cyan);margin:.5rem 0;">95</div><span style="font-size:.8rem;color:var(--accent-teal);">Mapel: Fisika</span></div>
+            <div class="glass-card"><span style="color:var(--muted);font-size:.85rem;">Perlu Perhatian</span><div class="stat-val" style="font-size:1.4rem;color:var(--color-load);margin:.5rem 0;">Matematika</div><span style="font-size:.8rem;color:var(--muted);">Korelasi stres tertinggi</span></div>
+          </div>
+          <div class="glass-card">
+            <h3>Tren Nilai Akademik Semester Ini</h3>
+            <div style="position:relative;height:300px;width:100%"><canvas id="chart-academic"></canvas></div>
+          </div>
+        </div>
+
+        <div id="pane-questionnaire" class="sub-pane">
+          <div class="grid2">
+            <div class="glass-card">
+              <h3 style="margin-bottom:1.25rem;">Kuesioner Beban Mental Harian</h3>
+              <form id="form-questionnaire" style="display:flex;flex-direction:column;gap:1.25rem;">
+                <div class="form-group">
+                  <label class="form-label">1. Apakah Anda merasa tertekan dengan materi hari ini?</label>
+                  <div class="q-opts">
+                    <label class="radio-btn" onclick="selRadio(this,'q1','Ya')"><input type="radio" name="q1" value="Ya" required> Ya</label>
+                    <label class="radio-btn" onclick="selRadio(this,'q1','Tidak')"><input type="radio" name="q1" value="Tidak"> Tidak</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">2. Apakah durasi istirahat Anda terasa cukup?</label>
+                  <div class="q-opts">
+                    <label class="radio-btn" onclick="selRadio(this,'q2','Ya')"><input type="radio" name="q2" value="Ya" required> Ya</label>
+                    <label class="radio-btn" onclick="selRadio(this,'q2','Tidak')"><input type="radio" name="q2" value="Tidak"> Tidak</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">3. Skala tingkat stres belajar saat ini (1-10)</label>
+                  <input type="range" id="q-scale" min="1" max="10" value="5" style="width:100%;margin-top:.5rem;accent-color:var(--accent-teal);" oninput="document.getElementById('q-scale-val').textContent=this.value">
+                  <div style="text-align:center;font-family:'Outfit',sans-serif;font-size:1.8rem;font-weight:700;color:var(--accent-teal);" id="q-scale-val">5</div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Kirim Jawaban</button>
+              </form>
+            </div>
+            <div class="glass-card" style="display:flex;flex-direction:column;gap:1.5rem;">
+              <div>
+                <h3>Rekomendasi AI Graphite</h3>
+                <div class="glass-card mt1" id="q-ai-suggestion" style="background:rgba(0,230,168,.03);color:var(--muted);font-size:.9rem;line-height:1.6;">Silakan isi kuesioner untuk mendapatkan analisis dari AI.</div>
+              </div>
+              <div>
+                <h3>Saran Guru BK</h3>
+                <div class="glass-card mt1" id="q-guru-solution" style="background:rgba(0,191,255,.03);border-color:rgba(0,191,255,.15);color:var(--muted);font-size:.9rem;line-height:1.6;">Belum ada pesan konseling dari Guru BK.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GURU BK DASHBOARD -->
+      <div id="dashboard-guru-section" class="page-section">
+        <div class="teacher-grid">
+          <div class="glass-card">
+            <h3 class="mb1">Daftar Siswa</h3>
+            <div class="student-list" id="teacher-student-list"><p style="color:var(--muted);font-size:.88rem;">Loading...</p></div>
+            <div class="glass-card mt2" style="padding:1.25rem;background:rgba(0,0,0,.02);">
+              <h4 class="mb1" style="font-size:.95rem;">Tulis Saran Konseling</h4>
+              <form id="form-guru-msg">
+                <div class="form-group"><label class="form-label">Pesan untuk Siswa</label><textarea class="form-input" id="guru-msg-input" rows="3" placeholder="Tulis saran atau motivasi..." style="resize:vertical;"></textarea></div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Kirim Saran</button>
+              </form>
+            </div>
+          </div>
+          <div>
+            <div class="glass-card" id="guru-no-sel" style="text-align:center;padding:4rem 2rem;">
+              <div style="font-size:4rem;margin-bottom:1rem;">👥</div>
+              <h3>Pilih Siswa untuk Memantau</h3>
+              <p style="color:var(--muted);max-width:400px;margin:.5rem auto 0;font-size:.9rem;">Klik nama siswa di daftar kiri untuk melihat data real-time.</p>
+            </div>
+            <div id="guru-detail" style="display:none;">
+              <div class="grid2">
+                <div class="glass-card">
+                  <h3>Live BPM: <span id="sel-student-name" style="color:var(--accent-teal);">-</span></h3>
+                  <div style="position:relative;height:220px;width:100%"><canvas id="chart-guru-live"></canvas></div>
+                </div>
+                <div class="glass-card stat-card">
+                  <div class="stat-info"><span style="color:var(--muted);font-size:.88rem;">Status Stres Siswa</span><span class="stat-val" id="guru-stress" style="font-size:1.5rem;color:var(--accent-teal);">Stabil</span><span style="font-size:.8rem;color:var(--muted);">Berdasarkan BPM &amp; HRV</span></div>
+                  <div style="font-size:3rem;">📊</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ORANG TUA DASHBOARD -->
+      <div id="dashboard-ortu-section" class="page-section">
+        <div class="glass-card mb2">
+          <h3 style="font-size:1.5rem;margin-bottom:.5rem;">Laporan Perkembangan Stres Anak</h3>
+          <p style="color:var(--muted);font-size:.9rem;">Memantau riwayat kesehatan mental anak: <strong id="ortu-child-name" style="color:var(--accent-teal);">-</strong> (ID: <span id="ortu-child-id">-</span>)</p>
+        </div>
+        <div class="grid2">
+          <div class="glass-card"><h3>Ringkasan Kejadian Stres Bulanan</h3><div style="position:relative;height:260px;width:100%"><canvas id="chart-ortu"></canvas></div></div>
+          <div class="glass-card" style="display:flex;flex-direction:column;gap:1rem;">
+            <h3>Rekomendasi Tindakan</h3>
+            <div class="glass-card" style="background:rgba(0,230,168,.05);border-color:rgba(0,230,168,.2);font-size:.9rem;color:var(--soft);">✅ <strong>Pastikan anak tidur cukup</strong> minimal 7-8 jam setiap malam untuk pemulihan kognitif optimal.</div>
+            <div class="glass-card" style="background:rgba(0,191,255,.05);border-color:rgba(0,191,255,.2);font-size:.9rem;color:var(--soft);">🧘 <strong>Ajak anak relaksasi ringan</strong> seperti jalan sore atau hobi di akhir pekan.</div>
+            <div class="glass-card" style="background:rgba(177,159,251,.05);border-color:rgba(177,159,251,.2);font-size:.9rem;color:var(--soft);">💬 <strong>Komunikasikan dengan guru BK</strong> jika tingkat stres anak terus meningkat.</div>
+          </div>
+        </div>
+        <div class="glass-card mt2">
+          <h3>Riwayat Historis Stres Anak</h3>
+          <div style="overflow-x:auto;">
+            <table class="gtable">
+              <thead><tr><th>Bulan</th><th>Rata-rata BPM</th><th>Rata-rata HRV</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Juni 2026</td><td>78</td><td>64 ms</td><td style="color:var(--color-optimal);">Stabil</td></tr>
+                <tr><td>Mei 2026</td><td>88</td><td>52 ms</td><td style="color:var(--color-load);">Beban Tinggi</td></tr>
+                <tr><td>April 2026</td><td>82</td><td>60 ms</td><td style="color:var(--color-optimal);">Stabil</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRAPHITE AI -->
+      <div id="graphite-ai-section" class="page-section">
+        <div class="glass-card chat-win">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:1rem;border-bottom:1px solid var(--border);margin-bottom:1rem;">
+            <div>
+              <h3 style="font-size:1.4rem;">🤖 Asisten AI "Graphite"</h3>
+              <p style="font-size:.83rem;color:var(--muted);margin-top:.2rem;">Tanyakan soal stres belajar, relaksasi, atau kesehatan mental.</p>
+            </div>
+            <span class="role-tag" style="background:var(--grad);color:#060621;">AI Powered</span>
+          </div>
+          <div class="chat-hist" id="chat-hist">
+            <div class="bubble ai">Halo! Saya Graphite, asisten AI pendamping Grahita Space. 🌱 Apakah Anda merasa stres atau butuh tips relaksasi hari ini?</div>
+          </div>
+          <div style="display:flex;gap:8px;padding:.75rem 0;flex-wrap:wrap;">
+            <button onclick="quickAsk('Aku merasa stres karena ujian, gimana cara mengatasinya?')" style="background:rgba(0,191,255,.08);border:1px solid rgba(0,191,255,.3);color:var(--accent-cyan);padding:6px 12px;border-radius:50px;font-size:.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Stres ujian</button>
+            <button onclick="quickAsk('Beri aku tips manajemen waktu belajar yang efektif')" style="background:rgba(0,191,255,.08);border:1px solid rgba(0,191,255,.3);color:var(--accent-cyan);padding:6px 12px;border-radius:50px;font-size:.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Tips belajar</button>
+            <button onclick="quickAsk('Bagaimana cara menenangkan diri saat merasa cemas?')" style="background:rgba(0,191,255,.08);border:1px solid rgba(0,191,255,.3);color:var(--accent-cyan);padding:6px 12px;border-radius:50px;font-size:.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Cara tenang</button>
+          </div>
+          <div class="chat-foot">
+            <form id="form-chat" class="chat-row">
+              <input type="text" id="chat-input" class="form-input" placeholder="Tulis pesan ke Graphite AI..." autocomplete="off">
+              <button type="submit" class="btn btn-primary">Kirim</button>
+            </form>
+            <p style="font-size:.68rem;color:var(--muted);text-align:center;margin-top:.75rem;line-height:1.4;">Graphite bukan pengganti tenaga profesional. Untuk kondisi serius, hubungi psikolog atau Hotline 119 ext 8.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- BREATHING MODAL -->
+<div class="breath-overlay" id="breath-modal">
+  <div class="breath-box glass-card">
+    <h3 style="font-family:'Outfit',sans-serif;font-size:2rem;margin-bottom:.5rem;">Intervensi Napas 4-7-8</h3>
+    <p style="color:var(--muted);margin-bottom:2rem;font-size:.9rem;">Ikuti siklus lingkaran untuk melepaskan beban stres kognitif Anda.</p>
+    <div class="breath-circle-wrap">
+      <div class="breath-ring"></div>
+      <div class="breath-ball" id="breath-ball">Tarik</div>
+    </div>
+    <div class="breath-instr" id="breath-instr">Tarik Napas</div>
+    <div class="breath-timer" id="breath-timer">4</div>
+    <button onclick="tutupModal()" class="btn btn-danger" style="margin-top:1.5rem;">Hentikan Relaksasi</button>
+  </div>
+</div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script>
+/* ═══ FIREBASE ═══ */
+firebase.initializeApp({
+  apiKey: "AIzaSyAFUC-lk_iJ89wRtL2J0X3BYazV18fzc5c",
+  authDomain: "grahita-space.firebaseapp.com",
+  databaseURL: "https://grahita-space-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grahita-space",
+  storageBucket: "grahita-space.firebasestorage.app",
+  messagingSenderId: "666471277376",
+  appId: "1:666471277376:web:4f687bf0ab4a0191cb50a5"
+});
+const db = firebase.database();
+
+/* ═══ THEME ═══ */
+function applyTheme(mode) {
+  document.documentElement.setAttribute('data-theme', mode);
+  const dark = mode === 'dark';
+  const icon = dark ? '🌙' : '☀️';
+  document.querySelectorAll('.theme-toggle').forEach(b => b.textContent = icon);
+  const sb = document.getElementById('sidebar-theme-btn');
+  if (sb) sb.textContent = (dark ? '🌙 Mode Gelap' : '☀️ Mode Terang');
+  localStorage.setItem('grahita_theme', mode);
+  refreshChartTheme(dark);
+}
+
+function toggleTheme() {
+  applyTheme((localStorage.getItem('grahita_theme')||'dark') === 'dark' ? 'light' : 'dark');
+}
+
+function refreshChartTheme(dark) {
+  const g = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
+  const l = dark ? '#8a8aab' : '#6b7280';
+  Chart.defaults.color = l;
+  [liveChart, monthlyChart, academicChart, ortuChart].forEach(c => {
+    if (!c) return;
+    Object.values(c.options.scales||{}).forEach(s => {
+      if (s.grid) s.grid.color = g;
+      if (s.ticks) s.ticks.color = l;
+    });
+    c.update();
+  });
+}
+
+/* ═══ TOAST ═══ */
+function toast(msg, type='ok', ms=3500) {
+  const w = document.getElementById('toast-wrap');
+  const t = document.createElement('div');
+  t.className = 'toast '+(type==='ok'?'':type);
+  t.innerHTML = `<span>${type==='err'?'⚠️':type==='info'?'ℹ️':'✓'}</span><span>${msg}</span>`;
+  w.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .4s,transform .4s';t.style.opacity='0';t.style.transform='translateY(12px)';setTimeout(()=>t.remove(),400)},ms);
+}
+
+/* ═══ AUTH ═══ */
+async function hashPw(pw) {
+  const d = new TextEncoder().encode(pw);
+  const b = await crypto.subtle.digest('SHA-256', d);
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function getSession() { try{return JSON.parse(localStorage.getItem('gs_session')||'null')}catch{return null} }
+function setSession(d) { localStorage.setItem('gs_session', JSON.stringify(d)) }
+function clearSession() { localStorage.removeItem('gs_session') }
+function showSection(id) {
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active-section'));
+  const t=document.getElementById(id);
+  if(t)t.classList.add('active-section');
+}
+function setErr(id,m){const e=document.getElementById(id);e.textContent=m;e.style.display='block'}
+function setOk(id,m){const e=document.getElementById(id);e.textContent=m;e.style.display='block'}
+function clearMsgs(){['login-error','reg-error','reg-success'].forEach(id=>{const e=document.getElementById(id);if(e){e.style.display='none';e.textContent=''}})}
+
+/* ═══ REGISTER ═══ */
+document.getElementById('form-register').addEventListener('submit', async function(e) {
+  e.preventDefault(); clearMsgs();
+  const name=document.getElementById('reg-name').value.trim();
+  const uname=document.getElementById('reg-username').value.trim();
+  const role=document.getElementById('reg-role').value;
+  const extra=document.getElementById('reg-extra').value.trim();
+  const pw=document.getElementById('reg-password').value;
+  const btn=this.querySelector('button[type="submit"]');
+  if(!uname||uname.length<3)return setErr('reg-error','Username minimal 3 karakter.');
+  if(/[.#$\[\]\/]/.test(uname))return setErr('reg-error','Username tidak boleh memuat . # $ [ ] /');
+  if(!pw||pw.length<6)return setErr('reg-error','Password minimal 6 karakter.');
+  btn.textContent='Memproses...';btn.disabled=true;
+  try{
+    const snap=await db.ref('Users/'+uname).get();
+    if(snap.exists())return setErr('reg-error','Username sudah digunakan.');
+    await db.ref('Users/'+uname).set({name,password:await hashPw(pw),role,extra,createdAt:new Date().toISOString()});
+    setOk('reg-success','✓ Akun berhasil dibuat! Silakan masuk.');
+    setTimeout(()=>showSection('login-section'),1500);
+  }catch(err){setErr('reg-error','Gagal: '+err.message)}
+  finally{btn.textContent='Buat Akun';btn.disabled=false}
+});
+
+/* ═══ LOGIN ═══ */
+document.getElementById('form-login').addEventListener('submit', async function(e) {
+  e.preventDefault(); clearMsgs();
+  const uname=document.getElementById('login-username').value.trim();
+  const pw=document.getElementById('login-password').value;
+  const btn=this.querySelector('button[type="submit"]');
+  if(!uname||!pw)return setErr('login-error','Username dan password harus diisi.');
+  btn.textContent='Memverifikasi...';btn.disabled=true;
+  try{
+    const snap=await db.ref('Users/'+uname).get();
+    if(!snap.exists())return setErr('login-error','Username tidak ditemukan.');
+    const u=snap.val();
+    if(u.password!==await hashPw(pw))return setErr('login-error','Password salah.');
+    await db.ref('Users/'+uname+'/lastLogin').set(new Date().toISOString());
+    const sess={username:uname,name:u.name,role:u.role,extra:u.extra};
+    setSession(sess); enterApp(sess);
+  }catch(err){setErr('login-error','Gagal login: '+err.message)}
+  finally{btn.textContent='Masuk ke Dashboard';btn.disabled=false}
+});
+
+/* ═══ LOGOUT ═══ */
+function handleLogout(){clearSession();location.reload()}
+
+/* ═══ ENTER APP ═══ */
+function enterApp(u) {
+  showSection('');
+  document.getElementById('authenticated-panel').style.display='flex';
+  document.getElementById('user-display-name').textContent=u.name||u.username;
+  document.getElementById('user-avatar-initials').textContent=(u.name||u.username).substring(0,2).toUpperCase();
+  const rl={siswa:'Siswa',orang_tua:'Orang Tua',guru_bk:'Guru BK'};
+  document.getElementById('user-display-role').textContent=rl[u.role]||u.role;
+  document.querySelectorAll('.role-siswa-only').forEach(el=>el.style.display=u.role==='siswa'?'':'none');
+  document.querySelectorAll('.role-guru-only').forEach(el=>el.style.display=u.role==='guru_bk'?'':'none');
+  document.querySelectorAll('.role-ortu-only').forEach(el=>el.style.display=u.role==='orang_tua'?'':'none');
+  const rr={siswa:'dashboard-siswa',guru_bk:'dashboard-guru',orang_tua:'dashboard-ortu'};
+  navigateTo(rr[u.role]||'dashboard-siswa');
+  initCharts();
+  setupSensor();
+  if(u.role==='orang_tua'){document.getElementById('ortu-child-name').textContent=u.name||'-';document.getElementById('ortu-child-id').textContent=u.extra||'-';}
+}
+
+/* ═══ NAVIGATION ═══ */
+function navigateTo(sec) {
+  document.querySelectorAll('.main-content .page-section').forEach(s=>{s.style.display='none';s.classList.remove('active-section')});
+  const t=document.getElementById(sec+'-section');
+  if(t){t.style.display='block';t.classList.add('active-section')}
+  const titles={'dashboard-siswa':'Dashboard Siswa','dashboard-guru':'Dashboard Guru BK','dashboard-ortu':'Dashboard Orang Tua','graphite-ai':'Graphite AI Assistant'};
+  document.getElementById('page-title').textContent=titles[sec]||'Grahita Space';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.sub-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sub-tab').forEach(t=>t.classList.remove('active'));
+  const p=document.getElementById('pane-'+tab);
+  if(p)p.classList.add('active');
+  document.querySelectorAll('.sub-tab').forEach(t=>{if(t.getAttribute('onclick')?.includes("'"+tab+"'"))t.classList.add('active')});
+}
+
+function selRadio(el,name,val) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach(i=>{i.checked=false;i.parentElement.classList.remove('selected')});
+  el.querySelector('input').checked=true;el.classList.add('selected');
+}
+
+/* ═══ CHARTS ═══ */
+let liveChart,monthlyChart,academicChart,ortuChart;
+
+function initCharts() {
+  const dark=(localStorage.getItem('grahita_theme')||'dark')==='dark';
+  const g=dark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)';
+  const l=dark?'#8a8aab':'#6b7280';
+  Chart.defaults.color=l;
+
+  const cl=document.getElementById('chart-live');
+  if(cl&&!liveChart){
+    const g1=cl.getContext('2d').createLinearGradient(0,0,0,240);g1.addColorStop(0,'rgba(0,191,255,.2)');g1.addColorStop(1,'rgba(0,191,255,0)');
+    const g2=cl.getContext('2d').createLinearGradient(0,0,0,240);g2.addColorStop(0,'rgba(0,230,168,.2)');g2.addColorStop(1,'rgba(0,230,168,0)');
+    liveChart=new Chart(cl,{type:'line',data:{labels:Array(12).fill(''),datasets:[
+      {label:'BPM',borderColor:'#00bfff',borderWidth:2.5,pointRadius:2,pointHoverRadius:5,backgroundColor:g1,fill:true,tension:.42,data:Array(12).fill(null),yAxisID:'yB'},
+      {label:'HRV ms',borderColor:'#00e6a8',borderWidth:2.5,pointRadius:2,pointHoverRadius:5,backgroundColor:g2,fill:true,tension:.42,data:Array(12).fill(null),yAxisID:'yH'}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},
+      scales:{x:{grid:{display:false}},yB:{type:'linear',position:'left',title:{display:true,text:'BPM',color:'#00bfff'},grid:{color:g},min:50,max:140},yH:{type:'linear',position:'right',title:{display:true,text:'HRV ms',color:'#00e6a8'},grid:{display:false},min:20,max:130}}}});
+  }
+
+  const cm=document.getElementById('chart-monthly');
+  if(cm&&!monthlyChart){
+    const gm=cm.getContext('2d').createLinearGradient(0,0,0,240);gm.addColorStop(0,'rgba(0,230,168,.25)');gm.addColorStop(1,'rgba(0,230,168,0)');
+    monthlyChart=new Chart(cm,{type:'line',data:{labels:['Jan','Feb','Mar','Apr','Mei','Jun'],datasets:[{label:'HRV (ms)',data:[72,68,55,78,62,80],borderColor:'#00e6a8',borderWidth:2.5,fill:true,backgroundColor:gm,tension:.4,pointBackgroundColor:'#00e6a8',pointHoverRadius:6}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{color:g}},y:{grid:{color:g},min:40}}}});
+  }
+
+  const ca=document.getElementById('chart-academic');
+  if(ca&&!academicChart){
+    const ga=ca.getContext('2d').createLinearGradient(0,0,0,280);ga.addColorStop(0,'#00e6a8');ga.addColorStop(1,'#00bfff');
+    academicChart=new Chart(ca,{type:'bar',data:{labels:['Matematika','Fisika','Biologi','Kimia','B. Indonesia','B. Inggris','Informatika'],datasets:[{label:'Nilai',data:[88,95,92,85,90,84,93],backgroundColor:ga,borderRadius:8,borderSkipped:false,barPercentage:.55}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:g},min:0,max:100}}}});
+  }
+
+  const co=document.getElementById('chart-ortu');
+  if(co&&!ortuChart){
+    ortuChart=new Chart(co,{type:'doughnut',data:{labels:['Stabil','Beban Tinggi','Overload'],datasets:[{data:[65,25,10],backgroundColor:['#00e6a8','#fbbf24','#f87171'],borderWidth:0,hoverOffset:6}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:l}}}}});
+  }
+}
+
+/* ═══ SENSOR ═══ */
+let sensorOff=null;
+function setupSensor() {
+  sensorOff=db.ref('Sensor').on('value',snap=>{
+    const d=snap.val();if(!d)return;
+    const bpm=parseInt(d.BPM)||0,hrv=parseInt(d.HRV)||0;
+    animNum(document.getElementById('live-bpm'),bpm);
+    animNum(document.getElementById('live-hrv'),hrv);
+
+    const ring=document.getElementById('stress-ring'),sv=document.getElementById('stress-val'),sg=document.getElementById('stress-guide'),ls=document.getElementById('live-status');
+    if(bpm>100||(hrv<55&&hrv>0)){
+      ring.style.cssText='border-color:#f87171;color:#f87171;box-shadow:0 0 30px rgba(248,113,113,.4)';
+      sv.textContent='OVERLOAD';ls.textContent='Stres Tinggi';ls.style.color='#f87171';
+      sg.textContent='Tingkat stres terdeteksi tinggi. Segera istirahat dan lakukan latihan napas 4-7-8.';
+    }else if(bpm>85||(hrv<65&&hrv>0)){
+      ring.style.cssText='border-color:#fbbf24;color:#fbbf24;box-shadow:0 0 30px rgba(251,191,36,.4)';
+      sv.textContent='BEBAN TINGGI';ls.textContent='Waspada';ls.style.color='#fbbf24';
+      sg.textContent='Mulai menunjukkan beban kognitif. Pertimbangkan istirahat singkat 5 menit.';
+    }else if(bpm>0){
+      ring.style.cssText='border-color:#00e6a8;color:#00e6a8;box-shadow:0 0 30px rgba(0,230,168,.3)';
+      sv.textContent='OPTIMAL';ls.textContent='Stabil';ls.style.color='#00e6a8';
+      sg.textContent='Kondisi fisiologis Anda optimal. Pertahankan ritme belajar saat ini.';
+    }
+
+    if(liveChart){
+      const now=new Date();
+      const lbl=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+      liveChart.data.labels.push(lbl);liveChart.data.datasets[0].data.push(bpm);liveChart.data.datasets[1].data.push(hrv);
+      if(liveChart.data.labels.length>12){liveChart.data.labels.shift();liveChart.data.datasets[0].data.shift();liveChart.data.datasets[1].data.shift()}
+      liveChart.update('none');
+    }
+
+    if(bpm>0||hrv>0){
+      const did=(d.deviceId||'default-device').replace(/[.#$\[\]\/]/g,'_');
+      db.ref('SensorHistory/'+did).push({bpm,hrv,t:Date.now()});
+      db.ref('Devices/'+did+'/info').set({lastSeen:new Date().toISOString(),lastBpm:bpm,lastHrv:hrv,status:'active'});
+    }
+  });
+}
+
+function animNum(el,target){
+  if(!el)return;
+  const start=parseInt(el.textContent)||0;if(start===target)return;
+  const dur=600,t0=performance.now();
+  function step(now){const p=Math.min((now-t0)/dur,1);el.textContent=Math.round(start+(target-start)*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(step)}
+  requestAnimationFrame(step);
+}
+
+/* ═══ QUESTIONNAIRE ═══ */
+document.getElementById('form-questionnaire').addEventListener('submit',async function(e){
+  e.preventDefault();
+  const q1=document.querySelector('input[name="q1"]:checked')?.value;
+  const q2=document.querySelector('input[name="q2"]:checked')?.value;
+  const scale=document.getElementById('q-scale').value;
+  const u=getSession();
+  if(!q1||!q2){toast('Jawab semua pertanyaan terlebih dahulu.','err');return}
+  try{
+    await db.ref('Evaluasi_Subjektif/'+(u?.username||'anon')+'_'+Date.now()).set({username:u?.username||'anon',q1,q2,scale,timestamp:new Date().toISOString()});
+    toast('Jawaban kuesioner berhasil dikirim! ✓');
+    const sc=parseInt(scale);
+    const sug=sc<=4?'Kondisi Anda terlihat baik! Pertahankan pola belajar dan istirahat yang seimbang. Tetap semangat! 💪':sc<=7?'Tingkat stres Anda cukup tinggi. Coba lakukan teknik napas 4-7-8 selama 5 menit dan ambil jeda dari belajar. ☕':'Beban mental Anda sangat tinggi. Sangat disarankan untuk beristirahat total, minum air putih, dan bicarakan dengan guru BK atau orang tua. 🆘';
+    document.getElementById('q-ai-suggestion').textContent=sug;
+  }catch(err){toast('Gagal mengirim: '+err.message,'err')}
+});
+
+/* ═══ GRAPHITE AI ═══ */
+/* ════════════════════════════════════════════════════
+   GRAPHITE AI — GROQ API CONFIGURATION
+   (Gratis, Cepat, Tidak Ada Masalah Region Indonesia)
+   ════════════════════════════════════════════════════
+   CARA SETUP:
+   1. Buka https://console.groq.com
+   2. Daftar gratis pakai email
+   3. Klik "API Keys" → "Create API Key"
+   4. Copy key yang muncul
+   5. Tempel di bawah ini — ganti tulisan:
+      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
+      dengan key asli kamu
+   ════════════════════════════════════════════════════ */
+
+const GROQ_API_KEY = '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';
+
+/* ════════════════════════════════════════════════════ */
+
+const SYSTEM = `Kamu adalah "Graphite", asisten AI pendamping kesejahteraan di aplikasi Grahita Space — sistem pemantauan stres berbasis wearable IoT untuk semua kalangan di Indonesia. Gaya bicaramu hangat, suportif, empatik, dan ringkas (maksimal 4-5 kalimat). Selalu balas Bahasa Indonesia yang santai dan ramah. Tugasmu: bantu pengguna kelola stres, tips belajar, manajemen waktu, teknik relaksasi. Batasan: bukan psikolog, tidak beri diagnosis medis. Jika ada tanda krisis serius dorong bicara dengan orang tua, guru BK, atau Hotline 119 ext 8.`;
+
+// Riwayat chat
+const chatHistory = [];
+
+function addBubble(role, text) {
+  const b = document.getElementById('chat-hist');
+  const el = document.createElement('div');
+  el.className = 'bubble ' + (role === 'user' ? 'user' : 'ai');
+  el.textContent = text;
+  b.appendChild(el);
+  b.scrollTop = b.scrollHeight;
+  return el;
+}
+
+async function quickAsk(t) {
+  document.getElementById('chat-input').value = t;
+  await sendChat();
+}
+
+async function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  // Cek API Key sudah diisi
+  if (!GROQ_API_KEY || GROQ_API_KEY.length < 20) {
+    addBubble('ai', '⚠️ API Key Groq belum diatur. Buka file HTML dan isi GROQ_API_KEY dengan key dari console.groq.com');
+    return;
+  }
+
+  inp.value = '';
+  addBubble('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  const typ = addBubble('ai', '');
+  typ.classList.add('typing');
+  typ.innerHTML = '<span></span><span></span><span></span>';
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + GROQ_API_KEY
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: SYSTEM },
+          ...chatHistory
+        ],
+        max_tokens: 500,
+        temperature: 0.8
+      })
+    });
+
+    const data = await res.json();
+
+    // Cek error dari Groq
+    if (data.error) {
+      typ.remove();
+      const errMsg = data.error.message || 'API Key tidak valid.';
+      addBubble('ai', '⚠️ Error Groq: ' + errMsg);
+      return;
+    }
+
+    const reply = data.choices?.[0]?.message?.content?.trim()
+      || 'Maaf, aku tidak bisa menjawab sekarang. Coba lagi ya!';
+
+    typ.remove();
+    addBubble('ai', reply);
+    chatHistory.push({ role: 'assistant', content: reply });
+
+  } catch (err) {
+    typ.remove();
+    addBubble('ai', 'Koneksi ke Graphite bermasalah. Periksa internet kamu dan coba lagi. 🙏');
+  }
+}
+
+document.getElementById('form-chat').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  await sendChat();
+});
+
+/* ═══ BREATHING ═══ */
+let bInterval=null,bTime=4,bCycle='inhale';
+function bukaModal(){
+  const m=document.getElementById('breath-modal');m.style.display='flex';
+  setTimeout(()=>m.style.opacity='1',10);
+  bTime=4;bCycle='inhale';updBreath();
+  bInterval=setInterval(()=>{bTime--;if(bTime<=0){if(bCycle==='inhale'){bCycle='hold';bTime=7}else if(bCycle==='hold'){bCycle='exhale';bTime=8}else{bCycle='inhale';bTime=4}}updBreath()},1000);
+}
+function updBreath(){
+  const ball=document.getElementById('breath-ball'),instr=document.getElementById('breath-instr'),timer=document.getElementById('breath-timer');
+  timer.textContent=bTime;
+  if(bCycle==='inhale'){ball.style.transform='scale(2)';ball.textContent='Tarik';instr.textContent='Tarik Napas Pelan...';instr.style.color='var(--accent-teal)'}
+  else if(bCycle==='hold'){ball.style.transform='scale(2)';ball.textContent='Tahan';instr.textContent='Tahan Napas Anda...';instr.style.color='var(--color-load)'}
+  else{ball.style.transform='scale(1)';ball.textContent='Hembus';instr.textContent='Hembuskan Lewat Mulut...';instr.style.color='var(--accent-purple)'}
+}
+function tutupModal(){const m=document.getElementById('breath-modal');m.style.opacity='0';clearInterval(bInterval);setTimeout(()=>m.style.display='none',500)}
+
+/* ═══ ROLE CHANGE ═══ */
+document.getElementById('reg-role').addEventListener('change',function(){
+  const role=this.value;const el=document.getElementById('reg-extra-label');const ei=document.getElementById('reg-extra');const bg=document.getElementById('reg-bk-group');
+  if(role==='siswa'){el.textContent='ID Siswa (Pairing Gelang)';ei.placeholder='Contoh: GR-XI-04';bg.style.display='none'}
+  else if(role==='orang_tua'){el.textContent='ID Siswa Anak';ei.placeholder='Contoh: GR-XI-04';bg.style.display='none'}
+  else{el.textContent='Kelas Bimbingan';ei.placeholder='Contoh: XI-4';bg.style.display='flex'}
+});
+
+/* ═══ INIT ═══ */
+document.addEventListener('DOMContentLoaded',()=>{
+  applyTheme(localStorage.getItem('grahita_theme')||'dark');
+  const s=getSession();
+  if(s)enterApp(s);
+});
+</script>
+</body>
+</html>
